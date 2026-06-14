@@ -1,0 +1,45 @@
+# 도메인팩 — 카테고리 정의 (format.py 의 CAT_COLORS/CAT_DOT_CLASSES/CAT_ORDER/CAT_NAMES 를 대체)
+#
+# 엔진은 이 파일에서 카테고리 id·라벨·색·렌더순서를 읽는다. 코드에 하드코딩하지 않는다.
+# /setup 이 새 조직용으로 이 파일을 생성한다. 아래는 예시 도메인팩(콘토소 모터스, EV).
+
+order:                    # 렌더링 정식 순서 (CAT_ORDER)
+  - battery
+  - autonomous
+  - charging
+  - models
+  - policy
+  - funding
+
+categories:
+  battery:
+    label_ko: "배터리"
+    color: "#2563eb"
+    dot_class: "c-battery"
+  autonomous:
+    label_ko: "자율주행"
+    color: "#7c3aed"
+    dot_class: "c-autonomous"
+  charging:
+    label_ko: "충전 인프라"
+    color: "#d97706"
+    dot_class: "c-charging"
+  models:
+    label_ko: "신차·라인업"
+    color: "#059669"
+    dot_class: "c-models"
+  policy:
+    label_ko: "정책·규제"
+    color: "#dc2626"
+    dot_class: "c-policy"
+  funding:
+    label_ko: "투자 · M&A"
+    color: "#6b7280"
+    dot_class: "c-funding"
+
+# 렌더링 폴백 (LLM 출력의 구 카테고리 id 호환)
+fallbacks:
+  models:           { label_ko: "신차·라인업", color: "#059669", dot_class: "c-models" }
+  self:             { label_ko: "자사",        color: "#ec4899", dot_class: "" }
+  reference:        { label_ko: "참고",        color: "#a8a29e", dot_class: "" }
+  default:          { label_ko: "기타",        color: "#78716c", dot_class: "" }

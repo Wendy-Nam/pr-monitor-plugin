@@ -1,0 +1,245 @@
+# 자사 및 경쟁 환경 프로필
+# 모든 에이전트가 "자사 관점" 기준으로 참조
+# 출처: 상사 공유 참고자료(전기차 시장 경쟁구도) + 공개 정보
+# 분기별 업데이트 예정
+
+company:
+  name: "콘토소 모터스"
+  industry: "전기차(EV) 제조"
+  core_products:
+    - "전기 승용차"
+    - "전기 SUV·라인업"
+    - "배터리·충전 플랫폼"
+  positioning: |
+    글로벌 전기차(EV) 제조사. 전통적으로 배터리·파워트레인 강세.
+    최근 자율주행(ADAS)·충전 인프라로 확장, 신차 라인업 확대 이후
+    글로벌 EV 시장에서 존재감 확대 중.
+
+# 주요 경쟁사 (헤드라인 경쟁사별 그룹핑용)
+# 대행사 Daily News Monitoring 포맷 호환
+competitors:
+  - name: "Tesla"
+    aliases: ["테슬라", "Tesla Motors"]
+    categories: [models, autonomous]
+  - name: "BYD"
+    aliases: ["비야디", "비야디오토"]
+    categories: [models, battery]
+  - name: "Rivian"
+    aliases: ["리비안", "Rivian Automotive"]
+    categories: [models]
+  - name: "Lucid"
+    aliases: ["루시드", "Lucid Motors", "루시드 모터스"]
+    categories: [models, battery]
+  - name: "NIO"
+    aliases: ["니오", "蔚来"]
+    categories: [models, charging]
+  - name: "Hyundai Motor"
+    aliases: ["현대차", "현대자동차", "Hyundai"]
+    categories: [models, battery]
+  - name: "Volkswagen"
+    aliases: ["폭스바겐", "VW", "Volkswagen Group"]
+    categories: [models, policy]
+  - name: "Ford"
+    aliases: ["포드", "Ford Motor"]
+    categories: [models]
+  - name: "GM"
+    aliases: ["제너럴모터스", "General Motors", "지엠"]
+    categories: [models, battery]
+  - name: "XPeng"
+    aliases: ["샤오펑", "엑스펑", "小鹏"]
+    categories: [autonomous, models]
+
+# 헤드라인 그룹 순서 (대행사 포맷 호환)
+# 경쟁사 동향 → 카테고리별 업계 동향
+headline_groups:
+  - id: "competitors"
+    label: "경쟁사 동향"
+    description: "주요 경쟁사별 기사. competitors 목록의 회사명/aliases 매칭."
+  - id: "battery"
+    label: "배터리"
+  - id: "autonomous"
+    label: "자율주행"
+  - id: "charging"
+    label: "충전 인프라"
+  - id: "models"
+    label: "신차·라인업"
+  - id: "policy"
+    label: "정책·규제"
+  - id: "funding"
+    label: "투자·M&A"
+
+# 카테고리 정의
+# 이 순서가 곧 브리핑 출력 순서
+categories:
+
+  battery:
+    label_ko: "배터리"
+    description: "전고체·리튬·LFP 등 배터리 셀/팩, 소재, 공급망"
+    is_self_category: true  # 자사 주력
+    priority: "high"
+    key_players:
+      - CATL
+      - LG에너지솔루션
+      - "Panasonic"
+      - BYD
+      - SK온
+    watch_keywords:
+      - "전고체"
+      - "리튬"
+      - "LFP"
+      - "배터리 셀"
+      - "에너지밀도"
+      - "충전 속도"
+
+  autonomous:
+    label_ko: "자율주행"
+    description: "ADAS, FSD, 레벨2~4 자율주행, 센서·인지 소프트웨어"
+    is_self_category: true  # 자사 확장 영역
+    priority: "high"
+    key_players:
+      - Tesla
+      - XPeng
+      - Mobileye
+      - Waymo
+    watch_keywords:
+      - "ADAS"
+      - "FSD"
+      - "레벨3"
+      - "라이다"
+      - "자율주행"
+      - "end-to-end"
+
+  charging:
+    label_ko: "충전 인프라"
+    description: "초급속 충전, 충전 네트워크, NACS/CCS 표준, 충전 사업"
+    is_self_category: false
+    priority: "medium"
+    rationale: "자사가 직접 운영하지는 않으나 충전 표준·네트워크가 판매 결정 요인"
+    key_players:
+      - "Tesla Supercharger"
+      - "Electrify America"
+      - "ChargePoint"
+      - "IONITY"
+    watch_keywords:
+      - "NACS"
+      - "CCS"
+      - "초급속"
+      - "충전소"
+      - "충전 네트워크"
+      - "350kW"
+
+  models:
+    label_ko: "신차·라인업"
+    description: "신규 EV 모델 출시, 가격 정책, 생산·인도 실적"
+    is_self_category: true  # 자사 직접 영역
+    priority: "high"
+    key_players:
+      - Tesla
+      - BYD
+      - Rivian
+      - "Hyundai Motor"
+    watch_keywords:
+      - "신차"
+      - "출시"
+      - "인도량"
+      - "가격 인하"
+      - "생산능력"
+      - "라인업"
+
+  policy:
+    label_ko: "정책·규제"
+    description: "EV 보조금, 관세, 배출규제, 무역정책, 안전·환경 규제"
+    is_self_category: false
+    priority: "medium"
+    rationale: "보조금·관세·배출규제가 EV 수요와 수익성에 직접 영향"
+    key_players:
+      - "US EPA"
+      - "EU Commission"
+      - "中 공신부"
+      - "산업통상자원부"
+    watch_keywords:
+      - "보조금"
+      - "IRA"
+      - "관세"
+      - "배출규제"
+      - "탄소중립"
+      - "무역"
+
+  funding:
+    label_ko: "투자 · M&A"
+    description: "EV·배터리·충전 분야 투자 라운드, 인수합병, 기업가치 변동"
+    is_self_category: false
+    priority: "low"
+    rationale: "경쟁사·잠재 파트너의 자금 흐름과 기업가치를 추적해 시장 판도 변화 감지"
+    key_players:
+      - "Rivian"
+      - "Lucid"
+      - "NIO"
+      - "XPeng"
+    watch_keywords:
+      - "raises"
+      - "funding"
+      - "Series"
+      - "seed round"
+      - "valuation"
+      - "acquisition"
+      - "M&A"
+      - "IPO"
+      # 한글 투자 키워드 — 국내 보도 funding 누락 방지 (과매칭 피해 한정적으로)
+      - "투자 유치"
+      - "기업가치"
+      - "유니콘"
+      - "시리즈 A"
+      - "시리즈 B"
+      - "시리즈 C"
+      - "상장"
+      - "인수합병"
+      - "자금 조달"
+
+# 참고자료의 Implication 에서 도출된 공통 관전 포인트
+cross_cutting_themes:
+  - theme: "배터리 원가 절감 경쟁"
+    keywords: ["LFP", "전고체", "셀투팩", "에너지밀도", "원가"]
+    rationale: "모든 카테고리에서 배터리 원가가 EV 가격 경쟁력의 핵심"
+
+  - theme: "소프트웨어 정의 차량(SDV) 전환"
+    keywords: ["OTA", "SDV", "FSD", "end-to-end", "차량 소프트웨어"]
+    rationale: "자율주행·인포테인먼트 소프트웨어가 최대 차별화 요소로 부상"
+
+  - theme: "충전 표준 통합(NACS)"
+    keywords: ["NACS", "CCS", "Supercharger", "충전 표준"]
+    rationale: "충전 표준 채택 여부가 완성차 업체 공통 화두"
+
+# 공급망 / 거시 변수
+supply_chain:
+  critical_components: ["리튬", "니켈", "코발트", "반도체 / AI 가속기"]
+  key_supplier_countries: ["중국", "한국", "일본", "미국"]
+  fx_exposure: ["USD", "CNY", "EUR"]
+
+regulatory_watch:
+  - "미국 IRA(인플레이션 감축법) 보조금"
+  - "EU 배출규제 (CO2 fleet)"
+  - "미국 관세 정책"
+  - "중국 EV 보조금·수출통제"
+  - "탄소중립 로드맵 (한국)"
+  - "자율주행 안전 규제"
+
+# 수신 대상 설정
+audience:
+  newsletter_briefing:
+    type: "daily"
+    recipients: "경영진 TBD (4주차 베타 지정)"
+    format: "참고자료(전기차 경쟁구도) 포맷 준수"
+    length_target: "A4 1페이지"
+
+  all_hands_newsletter:
+    type: "weekly"
+    recipients: "전 직원"
+    format: "자사 언급 외부 기사 큐레이션"
+    length_target: "5~10개 기사 + 3줄 요약"
+    filtering_strictness: "high"
+
+  self_review:
+    type: "daily"
+    recipients: "담당자 본인"
+    format: "전체 결과 + 검증 실패 로그 + 비용 리포트"

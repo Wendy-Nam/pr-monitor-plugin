@@ -1,0 +1,16 @@
+{
+  "name": "news-monitor",
+  "displayName": "News Monitor Tools",
+  "description": "뉴스 자동화 도구 마켓플레이스 — PR Monitor 외.",
+  "owner": {
+    "name": "Wendy Nam",
+    "email": "sharedwendy999@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "pr-monitor",
+      "source": "./",
+      "description": "뉴스 자동화 — 산업 인사이트 뉴스레터 + 자사 PR 모니터링. 도메인팩으로 어떤 조직/산업에도 재사용."
+    }
+  ]
+}

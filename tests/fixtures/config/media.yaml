@@ -1,0 +1,51 @@
+# 도메인팩 — 매체 정보. 엔진이 읽는다. /setup 이 생성. 테스트 픽스처 (가상 Acme Robotics).
+
+# gen-pr-monitor.py MEDIA_NAMES (line 45-51)
+# 기자명으로 오인되기 쉬운 매체·통신사명 — byline 추출 시 제외 대상
+outlet_names:
+  - "뉴시스"
+  - "뉴스핌"
+  - "뉴스원"
+  - "뉴스1"
+  - "연합뉴스"
+  - "연합"
+  - "이데일리"
+  - "머니투데이"
+  - "한국경제"
+  - "매일경제"
+  - "서울경제"
+  - "아주경제"
+  - "조선비즈"
+  - "로봇신문"
+  - "전자신문"
+  - "디지털타임스"
+  - "파이낸셜뉴스"
+  - "헤럴드경제"
+  - "이코노뉴스"
+  - "초이스경제"
+  - "비즈니스플러스"
+  - "데일리바이트"
+  - "마켓인"
+  - "중앙이코노미뉴스"
+  - "에너지경제"
+  - "에너지경제신문"
+  - "투어코리아"
+
+# gen-pr-monitor.py DOMAIN_TO_NAME (line 160-170)
+# 도메인 → 한국어 매체명 매핑 (PR 모니터 전용, source_name 정규화에 사용)
+#
+# NOTE: format.py 는 config/media-mapping.yaml 에서 별도 매핑을 로드한다 (load_media_mapping(), line 306-323).
+# 해당 파일은 현재 프로젝트 어디에도 존재하지 않으며 (find 결과 없음), format.py 는 파일 부재 시
+# graceful fallback (빈 dict)으로 동작한다.
+# 따라서 gen-pr-monitor.py DOMAIN_TO_NAME 과 format.py config/media-mapping.yaml 은 현재 별개 경로이며,
+# format.py 쪽 매핑은 미정의 상태다. 이 파일의 domain_to_name 이 두 용도의 단일 출처가 되어야 한다.
+domain_to_name:
+  "tistory.com": "티스토리(블로그)"      # 수집 단계에서 제외되나 잔존 시 라벨
+  "irobotnews.com": "로봇신문"
+  "irobot.co.kr": "로봇신문"
+  "v.daum.net": "다음 뉴스"
+  "n.news.naver.com": "네이버 뉴스"
+  "news.naver.com": "네이버 뉴스"
+  "bloomingbit.io": "bloomingbit"
+  "kedglobal.com": "KED Global"
+  "thelec.net": "The Elec"

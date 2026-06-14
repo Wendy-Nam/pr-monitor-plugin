@@ -1,0 +1,484 @@
+# 뉴스 수집 소스
+# 원칙:
+#   - 해외 비중이 높다. 경쟁사 대부분이 해외이고, 1차 보도가 영미권에서 먼저 나옴.
+#   - 국내 보도는 해외 보도의 번역/지연 버전인 경우가 많음.
+#   - 국내는 "자사 언급 추적" + "한국 정책/규제" 에 집중.
+#   - 목표 비율: 해외 70% / 국내 30%
+
+# ============================================================
+# 1. 해외 RSS - 전기차/배터리 전문 매체
+# ============================================================
+rss_feeds_global:
+
+  - name: "Electrek"
+    url: "https://electrek.co/feed/"
+    lang: en
+    priority: "critical"
+    categories_hint: [models, battery, charging, autonomous]
+    rationale: "해외 EV 업계 1차 보도 중심. 주요 발표가 여기 먼저 뜸"
+
+  - name: "InsideEVs"
+    url: "https://insideevs.com/rss/articles/all/"
+    lang: en
+    priority: "high"
+
+  # [제외됨 — XML 파싱 지속 실패, 2026-04 기준 복구 필요 시 재추가]
+  # - name: "Green Car Reports" (https://www.greencarreports.com/rss.xml)
+  # - name: "CleanTechnica" (https://cleantechnica.com/feed/)
+
+  - name: "Reuters - Autos"
+    url: "https://www.reuters.com/business/autos-transportation/rss"
+    lang: en
+    priority: "high"
+    rationale: "산업 전반 1차 보도. 실적·정책·M&A"
+
+  - name: "TechCrunch - Transportation"
+    url: "https://techcrunch.com/category/transportation/feed/"
+    lang: en
+    priority: "medium"
+    rationale: "스타트업/투자 소식 (Rivian/Lucid/NIO)"
+
+  - name: "Nikkei Asia"
+    url: "https://asia.nikkei.com/rss/feed/nar"
+    lang: en
+    priority: "high"
+    rationale: "아시아 완성차·배터리(CATL/현대차/BYD) 소식 영문판"
+
+# ============================================================
+# 2. 해외 경쟁사 공식 뉴스룸 (1차 소스)
+# ============================================================
+competitor_feeds:
+
+  - name: "Tesla Blog"
+    url: "https://www.tesla.com/blog"
+    category: models
+    fetch_method: "crawl"
+    rationale: "신차/FSD/Supercharger 업데이트 1차 소스"
+
+  - name: "BYD News"
+    url: "https://www.byd.com/en/news"
+    category: models
+    fetch_method: "crawl"
+
+  - name: "Rivian News"
+    url: "https://rivian.com/newsroom"
+    category: models
+    fetch_method: "crawl"
+
+  - name: "Lucid Motors News"
+    url: "https://lucidmotors.com/media-room"
+    category: models
+    fetch_method: "crawl"
+
+  - name: "NIO News"
+    url: "https://www.nio.com/news"
+    category: charging
+    fetch_method: "crawl"
+
+  - name: "Hyundai Motor Newsroom"
+    url: "https://www.hyundai.com/worldwide/en/newsroom"
+    category: models
+    fetch_method: "crawl"
+
+  - name: "Volkswagen Newsroom"
+    url: "https://www.volkswagen-newsroom.com/en"
+    category: policy
+    fetch_method: "crawl"
+
+  - name: "Ford Media"
+    url: "https://media.ford.com/content/fordmedia/fna/us/en/news.html"
+    category: models
+    fetch_method: "crawl"
+
+  - name: "GM News"
+    url: "https://news.gm.com/"
+    category: models
+    fetch_method: "crawl"
+
+  - name: "XPeng News"
+    url: "https://www.xpeng.com/news"
+    category: autonomous
+    fetch_method: "crawl"
+
+  - name: "CATL Newsroom"
+    url: "https://www.catl.com/en/news/"
+    fetch_method: "crawl"
+    rationale: "배터리 공급망 1차 소스"
+
+# ============================================================
+# 3. 해외 검색 기반 (Google News RSS)
+# ============================================================
+# 각 쿼리는 fetch-urls.py 가 다음 URL 템플릿으로 변환해 RSS 폴링:
+#   https://news.google.com/rss/search?q={query}&hl={hl}&gl={gl}&ceid={gl}:{hl}
+# 자세한 전략: @docs/collection-strategy.md
+google_news_queries_global:
+  fetch_method: "google_news_rss"
+  default_locale:
+    hl: "en"
+    gl: "US"
+  url_template: "https://news.google.com/rss/search?q={query}&hl={hl}&gl={gl}&ceid={gl}:{hl}"
+  # 쿼리 설계: 일일=1d, 주간=hours-override로 자동 확장. when:{d}d 는 fetch-urls.py 가 URL에 삽입.
+  # 6개 → 10개로 확장 (2026-06 경쟁사 직접쿼리 + 배터리/충전/정책 보강).
+  queries:
+
+    - query: "electric vehicle EV"
+      purpose: "전기차 전반 범용"
+      time_window: "1d"
+
+    - query: "Tesla OR BYD OR Rivian electric vehicle"
+      purpose: "신차 주요 경쟁사 직접 추적 (제목에 'EV' 없는 기사도 포함)"
+      time_window: "1d"
+
+    - query: "Lucid OR NIO OR XPeng electric car"
+      purpose: "프리미엄·중국 EV 경쟁사 (Air, ET, P7 등)"
+      time_window: "1d"
+
+    - query: "Hyundai OR Volkswagen OR Ford OR GM EV"
+      purpose: "레거시 완성차 EV 전환 통합"
+      time_window: "1d"
+
+    - query: "EV battery solid-state OR LFP OR CATL OR lithium"
+      purpose: "배터리 기술·공급망 주요 플레이어"
+      time_window: "1d"
+
+    - query: "EV charging NACS OR Supercharger OR fast charging network"
+      purpose: "충전 인프라/표준 전반 — NACS/CCS 발표 포함"
+      time_window: "1d"
+
+    - query: "autonomous driving ADAS OR FSD OR self-driving car"
+      purpose: "자율주행 / ADAS — Tesla, XPeng, Mobileye 등"
+      time_window: "1d"
+
+    - query: "EV subsidy OR IRA tax credit OR emissions regulation"
+      purpose: "EV 정책·규제 (보조금/배출규제) — 수요·수익성 추적"
+      time_window: "1d"
+
+    - query: "Contoso Motors"
+      purpose: "자사 해외 언급 추적 (영문 전체 — 주가/시황 포함, PR 모니터에서 분리)"
+      time_window: "2d"
+      bypass_strong_exclude: true   # 자사 언급 기사는 주가/급등 등 strong_exclude 필터 통과
+      max_items: 100                 # 영문 기사 누락 방지
+
+    - query: "EV startup acquisition OR battery funding OR mobility Series"
+      purpose: "EV 업계 M&A/투자 (Series B/C/D 통합)"
+      time_window: "2d"
+
+# ============================================================
+# 4. 국내 RSS (자사 언급 + 국내 정책 중심)
+# ============================================================
+rss_feeds_korea:
+
+  - name: "전자신문 - 산업"
+    url: "https://rss.etnews.com/Section902.xml"
+    lang: ko
+    priority: "high"
+    require_boost: true   # 범용 섹션 RSS — boost 키워드 없으면 drop
+
+  - name: "ZDNet Korea"
+    url: "https://feeds.feedburner.com/zdkorea"
+    lang: ko
+    priority: "medium"
+    require_boost: true
+
+  - name: "디지털타임스"
+    url: "https://www.dt.co.kr/rss/rss.xml"
+    lang: ko
+    priority: "medium"
+    require_boost: true
+
+  - name: "전자신문 - 자동차"
+    url: "https://rss.etnews.com/Section901.xml"
+    lang: ko
+    priority: "high"
+    rationale: "국내 전기차·배터리 보도. 자사 언급 많음"
+    require_boost: true
+
+# ============================================================
+# 5. Google News 한국어 검색 (네이버 대체 1차)
+# ============================================================
+# 네이버 뉴스는 RSS 를 제공하지 않으므로 Google News 한국어 로케일 사용.
+# 실제로 네이버가 색인한 국내 매체 대부분이 Google News 한국어에도 포함됨.
+korea_search_queries:
+  fetch_method: "google_news_rss"
+  default_locale:
+    hl: "ko"
+    gl: "KR"
+  url_template: "https://news.google.com/rss/search?q={query}&hl={hl}&gl={gl}&ceid={gl}:{hl}"
+  # 일일 실행 기준. 이전 5개 → 4개. 자사 관련 서브쿼리(배터리 한정) 는 #1에 포함되므로 삭제.
+  queries:
+
+    - query: "콘토소 모터스"
+      time_window: "2d"
+      priority: "critical"
+      purpose: "자사 직접 언급 (B 주간 레터 핵심)"
+      bypass_strong_exclude: true   # 주가/급등 등 strong_exclude 통과
+      max_items: 50
+
+    - query: "전기차 보조금"
+      time_window: "3d"
+      priority: "medium"
+      purpose: "국내 EV 보조금·정책 관련 보도"
+
+    - query: "전고체 배터리 한국"
+      time_window: "2d"
+
+    - query: "자율주행 국내"
+      time_window: "2d"
+
+# ============================================================
+# 6. 규제/정책
+# ============================================================
+regulatory_sources:
+
+  - name: "산업통상자원부 보도자료"
+    url: "https://www.motie.go.kr/motie/rss/press.xml"
+    lang: ko
+
+  - name: "EU Commission - Mobility"
+    url: "https://transport.ec.europa.eu/rss_en"
+    lang: en
+
+  - name: "US Trade Representative"
+    url: "https://ustr.gov/about-us/policy-offices/press-office/press-releases"
+    lang: en
+    fetch_method: "crawl"
+    rationale: "미국 관세/수출통제 정책"
+
+# ============================================================
+# 운영 설정
+# ============================================================
+settings:
+  # 수집 전략 (자세한 내용: @docs/collection-strategy.md)
+  collection_tier: "tier1_google_news"   # tier1_google_news | tier2_direct_rss | tier3_aggregator
+  fetcher_script: "scripts/fetch-urls.py"
+
+  # 섹션별 처리 방식 (fetch-urls.py 가 참조)
+  section_fetchers:
+    rss_feeds_global: "direct_rss"
+    rss_feeds_korea: "direct_rss"
+    competitor_feeds: "direct_rss_or_crawl"
+    google_news_queries_global: "google_news_rss"
+    korea_search_queries: "google_news_rss"
+    regulatory_sources: "direct_rss_or_crawl"
+
+  max_articles_per_day: 150
+  max_per_source: 10
+
+  # 소스 믹스 (배분 목표, 참고용)
+  source_mix:
+    global_rss: 60
+    competitor_feeds: 15
+    google_news_global: 25
+    korea_rss: 10
+    google_news_korea: 10
+    regulatory: 5
+
+  min_body_length: 500
+  fetch_timeout_sec: 15
+  max_fetch_retries: 2
+
+  # ============================================================
+  # Google News redirect URL 해석
+  # ============================================================
+  # 배경: Google News RSS 는 'news.google.com/rss/articles/<base64>?oc=5'
+  #       형태의 리다이렉트 URL 을 반환한다. 2024 하반기부터 이 URL 에
+  #       직접 HTTP 접근하면 HTTP 451 로 차단된다. 이 때문에 downstream
+  #       article-extractor 가 본문 추출에 실패한다.
+  #
+  # 해결: `googlenewsdecoder` 로 수집 단계에서 실제 소스 URL 을 해석.
+  #       실패 시 기본적으로 drop (어차피 downstream 에서 추출 실패).
+  gnews_url_resolution:
+    enabled: true
+    interval_seconds: 1.0           # 해석 간격 (Google 레이트리밋 대응)
+    max_consecutive_failures: 8     # 연속 실패 시 조기 종료 (차단 의심)
+    drop_unresolved: true           # 해석 실패한 URL 은 수집 리스트에서 drop
+
+  # ============================================================
+  # 제목 기반 프리필터 (LLM 이전 단계에서 노이즈 제거)
+  # ============================================================
+  # 목적: "전자신문 - 산업" 같은 범용 섹션에 섞여 들어오는
+  #       정치/지역행정 기사를 RSS 수집 단계에서 탈락시킴.
+  #       이래야 Haiku 분류 비용 절감 + 상한 100건 이 노이즈로 채워지는 것 방지.
+  #
+  # 로직:
+  #   1) 제목에 boost_keywords 중 하나라도 있으면 → 통과 + 우선순위 +10
+  #   2) 제목에 exclude_keywords 있고 boost 없으면 → drop
+  #   3) 둘 다 없으면 → 통과 (LLM 에 최종 판단 위임)
+  title_filters:
+    enabled: true
+
+    # 제목에 포함되면 "관련성 강함" 으로 플래그 + 우선순위 부스트.
+    # exclude 키워드가 동시에 있어도 이쪽이 이김 (false positive 방지).
+    boost_keywords:
+      # 한국어
+      - "전기차"
+      - "전기자동차"
+      - "배터리"
+      - "전고체"
+      - "리튬"
+      - "충전"
+      - "초급속"
+      - "자율주행"
+      - "신차"
+      - "보조금"
+      - "콘토소 모터스"
+      - "콘토소"
+      - "현대차"
+      - "테슬라"
+      - "폭스바겐"
+      # 영어
+      - "EV"
+      - "electric vehicle"
+      - "battery"
+      - "charging"
+      - "NACS"
+      - "ADAS"
+      - "FSD"
+      - "autonomous"
+      - "gigafactory"
+      - "powertrain"
+      # 경쟁사 고유명사 (보통 다른 맥락에서는 안 나옴)
+      - "Tesla"
+      - "BYD"
+      - "Rivian"
+      - "Lucid"
+      - "NIO"
+      - "XPeng"
+      - "Volkswagen"
+      - "CATL"
+
+    # 도메인 blocklist — 매체 자체가 저가치 (단순 시세 / 지수 / 암호화폐 등).
+    # title 검사 이전 단계에서 drop → 제목 loop 도 거치지 않음 (O(1) hash lookup).
+    exclude_domains:
+      - "joongangenews.com"        # 중앙이코노미뉴스 — 주가 일일 마감 중심
+      - "econonews.co.kr"          # 이코노뉴스 — 코스닥 시세 중심
+      - "alphabiz.co.kr"           # 알파경제 — 지수 편입/주식 전망 중심
+      - "cbci.co.kr"               # CBC뉴스 — 전기차주 commentary 중심
+      # 시장 commentary / 증권 뉴스 위주인 도메인을 여기 추가.
+      # 한 번이라도 유의미한 기업 뉴스가 확인되면 주석 처리하고 whitelist 로 이동.
+
+    # boost 보다 우선. 자사 이름이 있어도 이거 하나라도 매치되면 drop.
+    # 단순 시세 commentary 는 자사 언급이어도 brand intel 가치 거의 없음.
+    # strong_exclude 키워드는 config/keywords.yaml 의 strong_exclude 가 단일 정본.
+    # fetch-urls.py 가 로드 시 keywords.yaml 에서 주입한다 (classify.py 와 동일 리스트).
+
+    # 제목에 하나라도 있고 boost 없으면 drop.
+    # (정치/행정/지역 이슈 + 기타 범용 노이즈)
+    exclude_keywords:
+      # 선거/정치
+      - "후보"
+      - "예비후보"
+      - "선거"
+      - "공약"
+      - "당선"
+      - "출마"
+      - "유세"
+      - "투표"
+      - "대선"
+      - "총선"
+      - "지방선거"
+      - "경선"
+      - "국회의원"
+      - "시의원"
+      - "도의원"
+      - "교육감"
+      # 지방행정 (인물/직함 + 지역행사)
+      - "시장"       # 시장(市長). "시장 동향" 도 섞일 수 있음 — 그래도 보조 rule 로 커버
+      - "군수"
+      - "구청장"
+      - "도지사"
+      - "준공"
+      - "임용"
+      - "수여식"
+      - "취임"
+      - "이임"
+      - "개관"
+      - "착공"
+      - "개소식"
+      - "발대식"
+      # 연예/스포츠/날씨 (행여 섞여 들어오면)
+      - "연예"
+      - "아이돌"
+      - "골프"
+      - "야구"
+      - "축구"
+      # 증권/주식 시세·지수 (단순 시세 리포트, 인텔 가치 낮음)
+      - "주가"
+      - "마감"
+      - "상승 마감"
+      - "하락 마감"
+      - "매수"
+      - "매도"
+      - "상승세"
+      - "하락세"
+      - "급등"
+      - "급락"
+      - "코스피"
+      - "코스닥"
+      - "시총"
+      - "시가총액"
+      - "체결가"
+      - "공매도"
+      - "거래대금"
+      - "거래량"
+      - "증권가"
+      - "MSCI"              # "MSCI 편입 유력" 류 전망 기사
+      - "지수 편입"
+      - "지수 편출"
+      - "종목"
+      - "주식"
+      - "배당"
+      - "롤러코스터"
+      - "장세"
+      - "투자의견"
+      - "목표주가"
+      # 환율/거시 지표 (거의 기업 intel 과 무관)
+      - "환율"
+      - "원달러"
+      # 암호화폐 (전기차와 무관)
+      - "비트코인"
+      - "이더리움"
+      - "가상화폐"
+
+    # exclude 규칙에 예외 (false positive 회피)
+    # e.g. "시장 동향", "자동차 시장" 등 경제 맥락의 "시장" 은 boost 로 올리거나 예외 처리
+    exclude_exceptions:
+      # "시장" 키워드가 있어도 다음 문자열이 함께 있으면 제외 안 함
+      - "시장 동향"
+      - "시장 규모"
+      - "시장 점유"
+      - "시장 전망"
+      - "세계 시장"
+      - "글로벌 시장"
+
+  # ============================================================
+  # 클러스터링 (같은 사건 여러 매체 보도를 하나로 묶기)
+  # ============================================================
+  clustering:
+    enabled: true
+    # 같은 클러스터로 묶는 임계치
+    title_similarity_threshold: 0.75   # 0.85 → 0.75 로 완화 (한국어 기자별 변형 커버)
+    # 같은 클러스터 판단 시 시간창 (이 시간 내 발행건만 비교)
+    time_window_hours: 72
+    # 언어 다르면 별도 클러스터 (영어 기사 + 한국어 번역물 분리)
+    cross_language_cluster: false
+    # 클러스터 대표 기사 선정 기준 (우선순위 순)
+    canonical_article_priority:
+      - "first_published"        # 가장 먼저 발행된 매체
+      - "direct_rss"             # Google redirect 아닌 직접 URL
+      - "higher_tier_source"     # Electrek > 전자신문 > 블로그
+    # 최소 집계 건수 (이 이상 매체가 보도하면 "hot" 표시)
+    hot_cluster_threshold: 5
+
+  # 같은 사건 여러 언어 보도 시 우선순위
+  language_priority:
+    - en    # 1차 소스 가능성
+    - ko    # 자사/정책
+    - ja
+    - de
+
+  # 번역 정책
+  translation:
+    translate_for_output: true         # 최종 브리핑은 한국어
+    preserve_original_in_metadata: true  # 원문 인용은 영어 그대로 보존
+    translation_model: "haiku"         # Sonnet 낭비 안 함

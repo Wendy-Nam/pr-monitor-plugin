@@ -1,0 +1,8 @@
+# 주요 이벤트 (자동 누적 + 수동 시드)
+# 초기에 자사 주요 이벤트를 입력하면 인사이트 함의의 깊이가 달라집니다.
+
+events:
+  # - date: "2024-01-15"
+  #   type: "investment"       # investment / revenue / product / partnership / regulation
+  #   summary: "시리즈B 투자 유치 500억원"
+  #   source: "공개 정보"

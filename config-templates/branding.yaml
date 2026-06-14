@@ -1,0 +1,20 @@
+# 도메인팩 — 조직 브랜딩 문자열. 엔진이 읽는다. /setup 이 생성. 예시 도메인팩=콘토소 모터스(EV).
+
+# 조직명 (gen-pr-monitor.py 전체, classify.py build_self_patterns() 참고)
+org_name: "Contoso Motors"             # 한국어 공식명 (company-profile.yaml company.name 과 일치해야 함)
+org_name_en: "Contoso Motors"          # 영문명 (gen-pr-monitor.py SELF_KW, classify.py build_self_patterns())
+
+# 부서명 (gen-pr-monitor.py line 1184, format.py line 1433)
+dept: "Market Intelligence"
+
+# HTML 헤더 — PR 모니터 (gen-pr-monitor.py line 1173)
+# 정확한 원문: 'CONTOSO MOTORS · PR MONITORING'
+html_header_pr: "CONTOSO MOTORS · PR MONITORING"
+
+# HTML 헤더 — 뉴스레터 (format.py line 1296)
+# 정확한 원문: 'CONTOSO MOTORS · WEEKLY INTELLIGENCE'
+html_header_newsletter: "CONTOSO MOTORS · WEEKLY INTELLIGENCE"
+
+# HTML 푸터 공통 (gen-pr-monitor.py line 1184, format.py line 1433)
+# 정확한 원문: 'Contoso Motors · Market Intelligence'
+html_footer: "Contoso Motors · Market Intelligence"

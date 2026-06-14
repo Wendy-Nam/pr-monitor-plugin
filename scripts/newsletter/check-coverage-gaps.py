@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""briefing JSON에서 category_summary 서술에 누락된 headlines 기사를 탐지한다.
+
+format.py 실행 전에 호출해 갭을 미리 잡는다.
+갭이 있으면 gaps JSON을 stdout에 출력하고 exit 1.
+갭이 없으면 exit 0.
+
+사용:
+  python3 scripts/newsletter/check-coverage-gaps.py 2026-06-12
+"""
+from __future__ import annotations
+
+import json
+import re
+import sys
+from pathlib import Path
+
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from prmonitor import paths, domainpack
+
+PROCESSED = paths.PROCESSED_DIR
+
+CAT_IDS = set(domainpack.load_pack("categories")["order"])
+
+
+def _normalize(text: str) -> str:
+    """비교용 정규화: 소문자, 공백·구두점 제거."""
+    return re.sub(r"[\s\W]+", "", text.lower())
+
+
+def _headline_words(text: str) -> set[str]:
+    """헤드라인에서 의미 있는 키워드 추출 (3자 이상 한글 어절 or 4자 이상 영문 단어)."""
+    words: set[str] = set()
+    for w in re.findall(r"[가-힣]{3,}|[A-Za-z]{4,}", text):
+        words.add(w.lower())
+    return words
+
+
+def _covered(headline_text: str, summary_text: str) -> bool:
+    """헤드라인 핵심 키워드가 summary에 1개 이상 포함되면 covered."""
+    if not summary_text:
+        return False
+    norm_summary = _normalize(summary_text)
+    for w in _headline_words(headline_text):
+        if _normalize(w) in norm_summary:
+            return True
+    return False
+
+
+def main() -> int:
+    date_str = sys.argv[1] if len(sys.argv) > 1 else __import__("datetime").date.today().isoformat()
+
+    briefing_path = PROCESSED / f"newsletter-briefing-{date_str}.json"
+    if not briefing_path.exists():
+        print(f"ERROR: {briefing_path.name} 없음", file=sys.stderr)
+        return 1
+
+    briefing = json.loads(briefing_path.read_text(encoding="utf-8"))
+
+    # category_summary를 카테고리 ID → 서술 맵으로 (스키마 필드는 summary, 구버전 text 호환)
+    summary_map: dict[str, str] = {}
+    for c in briefing.get("category_summary", []):
+        cid = c.get("category_id", "")
+        summary_map[cid] = c.get("summary", "") or c.get("text", "")
+
+    # 검사 대상 = synthesis-context 의 카테고리 전체 (tier1 facts + tier2 헤드라인).
+    # briefing headlines 는 큐레이션(10~15건)이라 그것만 검사하면 미선별 기사가 빠진다.
+    candidates: list[tuple[str, str]] = []  # (category_id, title)
+    ctx_path = PROCESSED / f"synthesis-context-{date_str}.json"
+    if ctx_path.exists():
+        ctx = json.loads(ctx_path.read_text(encoding="utf-8"))
+        for cat in ctx.get("categories", []):
+            cid = cat.get("category_id", "")
+            for f in cat.get("facts", []):
+                candidates.append((cid, f.get("title", "")))
+        for t2 in ctx.get("tier2_headlines", []):
+            candidates.append((t2.get("category", ""), t2.get("title", "")))
+    else:
+        # 폴백: briefing 헤드라인만 검사 (구버전 동작)
+        for h in briefing.get("headlines", []):
+            candidates.append((h.get("group", "기타"), h.get("text", "")))
+
+    gaps: list[dict] = []
+    seen: set[str] = set()
+    for group, text in candidates:
+        if group not in CAT_IDS or not text:
+            continue  # 경쟁사 그룹·미분류는 별도 섹션 — 서술 의무 없음
+        key = _normalize(text)[:25]
+        if key in seen:
+            continue  # 같은 사건 복수 보도는 1건만 검사
+        seen.add(key)
+        # 1차: 해당 카테고리 요약. 2차: 전체 요약 합산 (다른 블록에서 서술돼도 커버 —
+        # 예: humanoid 분류 기사가 투자·M&A 블록에서 다뤄진 경우. 독자는 전 블록을 읽는다)
+        summary = summary_map.get(group, "")
+        all_summaries = " ".join(summary_map.values())
+        if not _covered(text, summary) and not _covered(text, all_summaries):
+            gaps.append({"category": group, "headline": text})
+            print(f"⚠️  갭[{group}]: {text[:70]}", file=sys.stderr)
+
+    if gaps:
+        print(json.dumps(gaps, ensure_ascii=False))
+        return 1
+
+    print("✓ 커버리지 갭 없음", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

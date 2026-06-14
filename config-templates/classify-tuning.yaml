@@ -1,0 +1,98 @@
+# 도메인팩 — 분류 튜닝 파라미터. 엔진이 읽는다. /setup 이 생성. 예시 도메인팩=콘토소 모터스(EV).
+
+# classify.py RISK_TITLE_KW (line 54-58)
+# 제목에 있으면 자사명 스캔을 본문 전체로 확장 (리스크 기사 보수 스캔)
+risk_title_keywords:
+  - "미공개정보"
+  - "내부자"
+  - "검찰"
+  - "소환"
+  - "수사"
+  - "의혹"
+  - "고발"
+  - "기소"
+  - "압수수색"
+  - "횡령"
+  - "배임"
+  - "소송"
+  - "피소"
+  - "제재"
+  - "과징금"
+  - "리콜"
+  - "결함"
+  - "화재"
+  - "논란"
+  - "분쟁"
+
+# classify.py GENERIC_CATEGORY_TERMS (line 96-100)
+# 범용어 — 카테고리를 단독으로 결정하지 못하는 일반 단어
+generic_category_terms:
+  - "ev"
+  - "electric"
+  - "vehicle"
+  - "car"
+  - "auto"
+  - "automotive"
+  - "ai"
+  - "a.i."
+  - "mobility"
+  - "전기차"
+  - "전기자동차"
+  - "자동차"
+  - "차량"
+  - "모빌리티"
+  - "인공지능"
+
+# classify.py _LISTING_MARKERS (line 139-142)
+# 나열·비교 표지 — 회사명 직후 짧은 범위에 등장하면 비교 대상으로 간주
+listing_markers:
+  - "등과"
+  - "등의"
+  - "등이"
+  - "등을"
+  - "등 "
+  - "들과"
+  - "들이"
+  - "와 함께"
+  - "과 함께"
+  - "비롯"
+  - "처럼"
+  - "같은 "
+  - "such as"
+  - "unlike"
+  - "compared"
+  - "rivals"
+  - "competitors"
+
+# classify.py calc_relevance() _expo_patterns (line 267)
+# 전시회/박람회 단순 참가 기사 — 경쟁사 언급 없으면 relevance 감점
+expo_patterns:
+  - "모터쇼"
+  - "EV 트렌드 코리아"
+  - "인터배터리"
+  - "엑스포"
+  - "박람회"
+
+# classify.py stakeholder_boost() (line 219-230)
+# 자사 직접 이해관계자(주요 주주·핵심 공급사 등) 로봇/EV 분야 언급은 +가중치.
+# 단, 노이즈 키워드가 제목에 있으면 부스트 무효.
+# 예시 도메인(콘토소 모터스)은 특정 이해관계자가 없어 빈 목록으로 둔다.
+# 새 조직은 필요 시 아래 스키마로 추가:
+#   - match: ["주주명", "stakeholder"]
+#     weight: 2
+#     noise_terms: ["무관 키워드", ...]
+stakeholder_boosts: []
+
+# aggregate.py _LOW_SIGNAL_TITLE_PATTERNS (line 74)
+# 전시회 부스참가·시장보고서 PR 등 — 경쟁사 언급 없으면 tier1 부적합
+low_signal_title_patterns:
+  - "모터쇼"
+  - "EV 트렌드 코리아"
+  - "인터배터리"
+  - "MarketsandMarkets"
+
+# aggregate.py _LOW_SIGNAL_BODY_PATTERNS (line 75)
+# 본문(first_paragraph) 기반 저신호 패턴
+low_signal_body_patterns:
+  - "감사패"
+  - "참가"

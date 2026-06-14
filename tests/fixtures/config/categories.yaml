@@ -1,0 +1,45 @@
+# 도메인팩 — 카테고리 정의 (format.py 의 CAT_COLORS/CAT_DOT_CLASSES/CAT_ORDER/CAT_NAMES 를 대체)
+#
+# 엔진은 이 파일에서 카테고리 id·라벨·색·렌더순서를 읽는다. 코드에 하드코딩하지 않는다.
+# /setup 이 새 조직용으로 이 파일을 생성한다. 아래는 테스트 픽스처 (가상 Acme Robotics).
+
+order:                    # 렌더링 정식 순서 (CAT_ORDER)
+  - cobots
+  - humanoid
+  - amr
+  - manufacturing_platform
+  - other_industrial
+  - funding
+
+categories:
+  cobots:
+    label_ko: "협동로봇"
+    color: "#2563eb"
+    dot_class: "c-cobot"
+  humanoid:
+    label_ko: "Humanoid"
+    color: "#7c3aed"
+    dot_class: "c-humanoid"
+  amr:
+    label_ko: "AMR"
+    color: "#d97706"
+    dot_class: "c-amr"
+  manufacturing_platform:
+    label_ko: "제조 자동화 플랫폼"
+    color: "#059669"
+    dot_class: "c-platform"
+  other_industrial:
+    label_ko: "기타산업"        # 고정형 산업용 로봇 포함
+    color: "#dc2626"
+    dot_class: "c-industrial"
+  funding:
+    label_ko: "투자 · M&A"
+    color: "#6b7280"
+    dot_class: "c-funding"
+
+# 렌더링 폴백 (LLM 출력의 구 카테고리 id 호환)
+fallbacks:
+  industrial_robot: { label_ko: "고정형 산업용 로봇", color: "#dc2626", dot_class: "c-industrial" }
+  self:             { label_ko: "자사",               color: "#ec4899", dot_class: "" }
+  reference:        { label_ko: "참고",               color: "#a8a29e", dot_class: "" }
+  default:          { label_ko: "기타",               color: "#78716c", dot_class: "" }

@@ -1,0 +1,42 @@
+# 도메인팩 — 인사이트 합성 few-shot 예시 (판단-전달 코퍼스). 테스트 픽스처 (가상 Acme Robotics).
+#
+# ⚠️ 이 파일은 도메인팩 중 유일하게 /setup 이 자동 생성하지 못한다.
+#    키워드·경쟁사·카테고리는 인터뷰로 열거되지만, "좋은 인사이트 vs 거짓 유추"의 판단은
+#    그 조직의 *실제 과거 브리핑*과 편집자의 판단으로만 만들어진다. 토큰 치환이 불가능하다.
+#    새 조직: 빈 슬롯으로 시작 → 엔진은 format(형식)을 강제하지만, 편집 품질(억지 유추 차단,
+#    이해관계자 연결의 진위)은 여기를 채워야 올라간다. 운영하며 좋은/나쁜 사례를 누적하라.
+#
+# 엔진 사용: preload-synthesis-context.py 가 이 파일을 synthesis-context 번들에 인라인해
+#    insight-synthesizer 프롬프트로 전달한다(도메인 예시를 프롬프트에 하드코딩하지 않음).
+
+# 좋은 인사이트 — "외부 팩트 + 자사 맥락 = 직설적 함의" 3단, 비유 없이 수치 직결.
+good_insights:
+  - observation: "삼성전자의 자사 제품 구매액이 작년 104억원으로 전년의 7.5배였다."
+    implication: "지분 투자 단계가 아니라 공장 공급 계약이 돌아가기 시작했다는 뜻이다."
+    why_good: "수치 직결. 비유('기울기/신호') 없이 '무엇이 달라졌나'를 한 문장으로. 자사 최대주주라는 맥락과 교차."
+  - observation: "NVIDIA의 한국 로봇 파트너 공개 목록에 삼성은 있고 자사는 없다."
+    implication: "자사의 NVIDIA 생태계 편입 여부가 확인 대상이다."
+    why_good: "팩트가 지지하는 범위에서 멈춤('확인 대상'). '편입됐다'는 희망적 단정으로 넘어가지 않음."
+
+# 나쁜 예시 — 엔진이 차단해야 할 패턴. fault 별로 분류.
+bad_examples:
+  - text: "삼성 구매액 7.5배의 기울기는 실전 공급 관계로 이동한 신호이다."
+    fault: buzzword_metaphor       # 기울기/신호 = 톤 블랙리스트
+    why_bad: "같은 팩트를 비유·추상어로 흐림. style.yaml tone_blacklist 위반."
+  - text: "삼성이 자사 파트너이므로 NVIDIA 생태계에도 자동 편입된다."
+    fault: hopeful_inference
+    why_bad: "팩트가 지지하지 않는 결론. '삼성 파트너 → 자사 자동 편입'은 희망적 추론."
+  - text: "티로보틱스 600대 레퍼런스로 150억 수주가 가능하다."
+    fault: false_analogy
+    why_bad: "타사 레퍼런스 규모를 자사 기회로 등치. 서로 다른 거래 구조를 유추로 연결."
+  - text: "자사 RB시리즈가 이미 5,000대 납품됐다."
+    fault: fabricated_number
+    why_bad: "원문 근거 없는 수치. 수치·고유명사는 원문 인용 수준 정확도가 필요(없으면 뺀다)."
+  - text: "협동로봇 시장은 빠르게 성장하고 있다."
+    fault: truism
+    why_bad: "누구나 아는 일반론. 외부+자사 교차도, 검증 가능한 팩트도 없음."
+
+# 새 조직용 빈 슬롯 스키마 (참고):
+#   good_insights:  [{observation, implication, why_good}]
+#   bad_examples:   [{text, fault, why_bad}]
+#   fault 값: buzzword_metaphor | hopeful_inference | false_analogy | fabricated_number | truism

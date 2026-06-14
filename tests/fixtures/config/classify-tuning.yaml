@@ -1,0 +1,106 @@
+# 도메인팩 — 분류 튜닝 파라미터. 엔진이 읽는다. /setup 이 생성. 테스트 픽스처 (가상 Acme Robotics).
+
+# classify.py RISK_TITLE_KW (line 54-58)
+# 제목에 있으면 자사명 스캔을 본문 전체로 확장 (리스크 기사 보수 스캔)
+risk_title_keywords:
+  - "미공개정보"
+  - "내부자"
+  - "검찰"
+  - "소환"
+  - "수사"
+  - "의혹"
+  - "고발"
+  - "기소"
+  - "압수수색"
+  - "횡령"
+  - "배임"
+  - "소송"
+  - "피소"
+  - "제재"
+  - "과징금"
+  - "리콜"
+  - "결함"
+  - "논란"
+  - "분쟁"
+
+# classify.py GENERIC_CATEGORY_TERMS (line 96-100)
+# 범용어 — 카테고리를 단독으로 결정하지 못하는 일반 단어
+generic_category_terms:
+  - "robot"
+  - "robots"
+  - "robotics"
+  - "robotic"
+  - "automation"
+  - "automated"
+  - "ai"
+  - "a.i."
+  - "nvidia"
+  - "로봇"
+  - "로보틱스"
+  - "로보트"
+  - "자동화"
+  - "인공지능"
+  - "엔비디아"
+
+# classify.py _LISTING_MARKERS (line 139-142)
+# 나열·비교 표지 — 회사명 직후 짧은 범위에 등장하면 비교 대상으로 간주
+listing_markers:
+  - "등과"
+  - "등의"
+  - "등이"
+  - "등을"
+  - "등 "
+  - "들과"
+  - "들이"
+  - "와 함께"
+  - "과 함께"
+  - "비롯"
+  - "처럼"
+  - "같은 "
+  - "such as"
+  - "unlike"
+  - "compared"
+  - "rivals"
+  - "competitors"
+
+# classify.py calc_relevance() _expo_patterns (line 267)
+# 전시회/박람회 단순 참가 기사 — 경쟁사 언급 없으면 relevance 감점
+expo_patterns:
+  - "STK"
+  - "로보테크쇼"
+  - "코마텍"
+  - "엑스포"
+  - "박람회"
+
+# classify.py samsung_boost() + _SAMSUNG_APPLIANCE_NOISE (line 219-230)
+# 삼성전자(최대주주 지분 35%) 로봇 분야 언급은 자사 직접 이해관계 → +2 가중치
+# 단, 가전 노이즈 키워드가 제목에 있으면 부스트 무효
+stakeholder_boosts:
+  - match: ["삼성", "samsung"]   # samsung_boost() 트리거 (line 226-227)
+    weight: 2
+    noise_terms:                 # _SAMSUNG_APPLIANCE_NOISE (line 219-220)
+      - "로봇청소기"
+      - "로청"
+      - "비스포크"
+      - "가전"
+      - "세탁기"
+      - "냉장고"
+      - "청소기"
+      - "에어컨"
+      - "tv"
+      - "스마트폰"
+      - "갤럭시"
+
+# aggregate.py _LOW_SIGNAL_TITLE_PATTERNS (line 74)
+# 전시회 부스참가·시장보고서 PR 등 — 경쟁사 언급 없으면 tier1 부적합
+low_signal_title_patterns:
+  - "STK"
+  - "로보테크쇼"
+  - "코마텍"
+  - "MarketsandMarkets"
+
+# aggregate.py _LOW_SIGNAL_BODY_PATTERNS (line 75)
+# 본문(first_paragraph) 기반 저신호 패턴
+low_signal_body_patterns:
+  - "감사패"
+  - "참가"

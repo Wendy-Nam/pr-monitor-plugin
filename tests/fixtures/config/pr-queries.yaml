@@ -1,0 +1,37 @@
+# 도메인팩 — PR 쿼리 및 자사 식별. 엔진이 읽는다. /setup 이 생성. 테스트 픽스처 (가상 Acme Robotics).
+
+# gen-pr-monitor.py SELF_KW (line 115)
+# 자사명 식별 키워드 — PR 모니터 노이즈 제거·직접/간접 언급 분류에 사용
+self_aliases:
+  - "에이콤로보틱스"
+  - "acme robotics"
+  - "에이콤로보"
+
+# gen-pr-monitor.py GNEWS_QUERIES (line 154-157)
+# Google News RSS 직접 수집 쿼리 목록
+gnews_queries:
+  - query: "에이콤로보틱스"
+    hl: "ko"
+    gl: "KR"
+    domestic: true
+  - query: "Acme Robotics"
+    hl: "en"
+    gl: "US"
+    domestic: false
+
+# gen-pr-monitor.py TOPIC_KEYS (line 997-1004)
+# 주제 다양성 보장을 위한 토픽 분류 키 — 동일 토픽은 최대 3건 cap 후 다른 주제로 채움
+# 구조: keywords(매칭 문자열 목록) + label(토픽 이름)
+topic_keys:
+  - keywords: ["압수수색", "수사", "검찰", "미공개", "insider"]
+    label: "수사"
+  - keywords: ["주가", "시가총액", "코스닥", "상한가", "하한가", "주식"]
+    label: "주가"
+  - keywords: ["삼성", "samsung"]
+    label: "삼성"
+  - keywords: ["휴머노이드", "humanoid"]
+    label: "휴머노이드"
+  - keywords: ["협동로봇", "cobot"]
+    label: "협동로봇"
+  - keywords: ["투자", "펀딩", "funding", "series"]
+    label: "투자"

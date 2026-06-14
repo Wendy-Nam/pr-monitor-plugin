@@ -1,0 +1,271 @@
+# 자사 및 경쟁 환경 프로필
+# 모든 에이전트가 "자사 관점" 기준으로 참조
+# 출처: 상사 공유 참고자료(제조자동화 시장 경쟁구도) + 공개 정보
+# 분기별 업데이트 예정
+
+company:
+  name: "에이콤로보틱스"
+  industry: "산업용 로봇 제조"
+  core_products:
+    - "고정형 산업용 로봇"
+    - "협동로봇"
+    - "휴머노이드 플랫폼"
+  positioning: |
+    한국 기반 로봇 제조사. 전통적으로 협동로봇 강세.
+    최근 휴머노이드 플랫폼으로 확장, 삼성전자 전략적 지분 투자 이후
+    B2B 제조자동화 시장에서 존재감 확대 중.
+
+# 주요 경쟁사 (헤드라인 경쟁사별 그룹핑용)
+# 대행사 Daily News Monitoring 포맷 호환
+competitors:
+  - name: "두산로보틱스"
+    aliases: ["Doosan Robotics", "두산로보"]
+    categories: [cobots, humanoid]
+  - name: "한화로보틱스"
+    # 주의: 단독 "한화"는 한화에어로스페이스·한화오션 등 타 계열사 오매칭 → 제외
+    aliases: ["Hanwha Robotics", "한화 로보틱스", "한화로보틱스"]
+    categories: [cobots, other_industrial]
+  - name: "현대로보틱스"
+    aliases: ["Hyundai Robotics", "현대차 로보틱스랩", "현대 로보틱스"]
+    categories: [other_industrial, humanoid]
+  - name: "보스턴다이나믹스"
+    aliases: ["Boston Dynamics", "BD", "보스턴 다이나믹스", "보스턴다이내믹스", "보스턴 다이내믹스"]
+    categories: [humanoid]
+  - name: "FANUC"
+    aliases: ["화낙", "파낙"]
+    categories: [other_industrial, cobots]
+  - name: "Yaskawa"
+    aliases: ["야스카와", "야스카와전기", "Yaskawa Electric"]
+    categories: [other_industrial, cobots]
+  - name: "ABB"
+    aliases: ["에이비비"]
+    categories: [other_industrial, cobots]
+  - name: "KUKA"
+    aliases: ["쿠카"]
+    categories: [other_industrial]
+  - name: "Universal Robots"
+    aliases: ["UR", "유니버설로봇", "유니버설 로봇"]
+    categories: [cobots]
+  - name: "Techman Robot"
+    aliases: ["Techman", "테크맨", "테크맨로봇"]
+    categories: [cobots]
+  - name: "Unitree"
+    aliases: ["유니트리"]
+    categories: [humanoid]
+  - name: "Figure"
+    aliases: ["Figure AI", "피규어 AI", "피규어AI"]
+    categories: [humanoid]
+  - name: "Tesla"
+    aliases: ["테슬라", "Optimus", "옵티머스"]
+    categories: [humanoid]
+  - name: "1X"
+    aliases: ["1X Technologies", "원엑스"]
+    categories: [humanoid]
+
+# 헤드라인 그룹 순서 (대행사 포맷 호환)
+# 경쟁사 동향 → 카테고리별 업계 동향
+headline_groups:
+  - id: "competitors"
+    label: "경쟁사 동향"
+    description: "주요 경쟁사별 기사. competitors 목록의 회사명/aliases 매칭."
+  - id: "cobots"
+    label: "협동로봇"
+  - id: "humanoid"
+    label: "Humanoid"
+  - id: "amr"
+    label: "AMR"
+  - id: "manufacturing_platform"
+    label: "제조 자동화 플랫폼"
+  - id: "other_industrial"
+    label: "기타산업"
+  - id: "funding"
+    label: "투자·M&A"
+
+# 카테고리 정의
+# 이 순서가 곧 브리핑 출력 순서
+categories:
+
+  manufacturing_platform:
+    label_ko: "제조 자동화 Platform"
+    description: "MES / 제어 / 에너지 / 데이터 통합 플랫폼"
+    is_self_category: false
+    priority: "medium"
+    rationale: "자사가 직접 만들지는 않지만, 이 영역이 로봇 발주 결정자"
+    key_players:
+      - Siemens
+      - Rockwell Automation
+      - Schneider Electric
+      - OMRON
+      - Mitsubishi
+    watch_keywords:
+      - "Industrial Copilot"
+      - "NVIDIA Omniverse"
+      - "digital twin"
+      - "MES AI"
+      - "Nemotron"
+      - "edge AI"
+
+  other_industrial:
+    label_ko: "기타산업"
+    description: "고정형 산업용 로봇(FANUC/ABB/KUKA/Yaskawa), SCARA/델타, 용접·도장·조립 자동화 등 위 카테고리에 속하지 않는 산업용 로봇 및 자동화"
+    is_self_category: true  # 자사 고정형 로봇 포함
+    priority: "medium"
+    key_players:
+      - FANUC
+      - ABB
+      - KUKA
+      - Yaskawa
+    watch_keywords:
+      - "sim-to-real"
+      - "robot learning"
+      - "LBR iisy"
+      - "LBR iiwa"
+      - "KMR"
+      - "협동로봇과 AMR 결합"
+      - "Foxconn 파일럿"
+
+  cobots:
+    label_ko: "협동로봇"
+    description: "인간 협업 가능한 저출력 로봇"
+    is_self_category: true  # 자사 주력
+    priority: "high"
+    key_players:
+      - "Universal Robots"
+      - "Doosan Robotics"
+      - "Techman Robot"
+    watch_keywords:
+      - "TCP 속도"
+      - "pick-and-place"
+      - "UR AI Accelerator"
+      - "flying-trigger inspection"
+      - "사이클타임"
+
+  amr:
+    label_ko: "AMR"
+    description: "자율이동로봇, 물류/공장 내 이송"
+    is_self_category: false
+    priority: "medium"
+    rationale: "자사 직접 경쟁 영역 아니나 협동 + AMR 결합 트렌드 있음"
+    key_players:
+      - "MiR"
+      - "OTTO by Rockwell"
+      - "Geek+"
+      - "ForwardX"
+    watch_keywords:
+      - "VDA 5050"
+      - "fleet management"
+      - "heavy-load 이송"
+      - "AMMR"
+      - "joint workflow"
+      - "AGV"
+      - "자율주행"
+      - "물류 로봇"
+
+  humanoid:
+    label_ko: "Humanoid"
+    description: "휴머노이드 이족 보행 로봇"
+    is_self_category: true  # 자사 확장 영역
+    priority: "high"
+    key_players:
+      - Tesla
+      - "Boston Dynamics"
+      - Unitree
+      - "Agility Robotics"
+      - Figure
+      - "1X"
+    watch_keywords:
+      - "Atlas"
+      - "Optimus"
+      - "Digit"
+      - "parts sequencing"
+      - "RaaS"
+      - "humanoid factory"
+      - "humanoid"
+      - "휴머노이드"
+      - "이족 보행"
+      - "NVIDIA"
+      - "젠슨 황"
+      - "Jensen Huang"
+      - "Cosmos"
+      - "피지컬 AI"
+      - "physical AI"
+      - "로봇 훈련소"
+
+  funding:
+    label_ko: "투자 · M&A"
+    description: "로봇·자동화 분야 투자 라운드, 인수합병, 기업가치 변동"
+    is_self_category: false
+    priority: "low"
+    rationale: "경쟁사·잠재 파트너의 자금 흐름과 기업가치를 추적해 시장 판도 변화 감지"
+    key_players:
+      - "Generalist AI"
+      - "Figure AI"
+      - "1X"
+      - "Agility Robotics"
+    watch_keywords:
+      - "raises"
+      - "funding"
+      - "Series"
+      - "seed round"
+      - "valuation"
+      - "acquisition"
+      - "M&A"
+      - "IPO"
+      # 한글 투자 키워드 — 국내 보도 funding 누락 방지 (과매칭 피해 한정적으로)
+      - "투자 유치"
+      - "기업가치"
+      - "유니콘"
+      - "시리즈 A"
+      - "시리즈 B"
+      - "시리즈 C"
+      - "상장"
+      - "인수합병"
+      - "자금 조달"
+
+# 참고자료의 Implication 에서 도출된 공통 관전 포인트
+cross_cutting_themes:
+  - theme: "AI 기반 Software 고도화"
+    keywords: ["NVIDIA", "Nemotron", "generative AI", "foundation model", "edge AI"]
+    rationale: "모든 카테고리에서 AI 접목이 최대 차별화 요소"
+
+  - theme: "산업용 ↔ 협동 ↔ AMR 경계 붕괴"
+    keywords: ["KMR", "AMMR", "협동로봇 + AMR"]
+    rationale: "고정형 경쟁사들이 협동/AMR 시장 잠식 중"
+
+  - theme: "NVIDIA 생태계 편입"
+    keywords: ["NVIDIA Omniverse", "Nemotron", "Jetson", "Isaac"]
+    rationale: "NVIDIA 파트너십이 제조자동화/로봇 업체 공통 화두"
+
+# 공급망 / 거시 변수
+supply_chain:
+  critical_components: ["서보모터", "감속기", "정밀 센서", "GPU / AI 가속기"]
+  key_supplier_countries: ["일본", "독일", "대만", "미국"]
+  fx_exposure: ["USD", "JPY", "EUR"]
+
+regulatory_watch:
+  - "산업안전보건법 개정"
+  - "AI 기본법 (한국)"
+  - "중대재해처벌법"
+  - "미국 관세 정책"
+  - "EU AI Act"
+  - "중국 수출통제"
+
+# 수신 대상 설정
+audience:
+  newsletter_briefing:
+    type: "daily"
+    recipients: "경영진 TBD (4주차 베타 지정)"
+    format: "참고자료(제조자동화 경쟁구도) 포맷 준수"
+    length_target: "A4 1페이지"
+
+  all_hands_newsletter:
+    type: "weekly"
+    recipients: "전 직원"
+    format: "자사 언급 외부 기사 큐레이션"
+    length_target: "5~10개 기사 + 3줄 요약"
+    filtering_strictness: "high"
+
+  self_review:
+    type: "daily"
+    recipients: "담당자 본인"
+    format: "전체 결과 + 검증 실패 로그 + 비용 리포트"

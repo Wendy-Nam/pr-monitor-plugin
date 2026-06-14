@@ -1,0 +1,132 @@
+---
+name: setup
+description: PR Monitor 설정 — 첫 설치(도메인팩 생성)·시크릿·수신자·키워드·루틴 등록·상태 확인. 리포트 생성은 /newsletter·/pr-clipping.
+argument-hint: "[명령어] — 없으면 상태 + 미설정 시 설치 마법사"
+---
+
+# PR Monitor 설정
+
+이 커맨드는 **설정·운영**만 담당한다(리포트 생성 X). 핵심은 **도메인팩 생성** — 이 엔진은 회사·산업을 모르고, `config/` 의 도메인팩 YAML 을 읽어 동작한다. 새 조직은 인터뷰로 도메인팩을 만든다.
+
+## 경로 규칙 (플러그인 모델)
+
+- 도메인팩·수신자·산출물 = **워크스페이스**(`${CLAUDE_PROJECT_DIR}/config`, `/data`). 사용자가 보고 편집·백업.
+- 시크릿(Azure) = **플러그인 설정(userConfig) → OS 키체인**. YAML 평문 금지.
+- 번들 기본값·도메인팩 1호 = 읽기전용 `${CLAUDE_PLUGIN_ROOT}/config-templates/`.
+- 캐시·venv = `${CLAUDE_PLUGIN_DATA}` (숨김).
+
+## 명령어 인식 (자연어 매칭)
+
+| 입력 예 | 실행 |
+|---|---|
+| "상태", "설정 상태" | → **STATUS** |
+| "설치", "초기 설정", "셋업", "새 조직" | → **INSTALL** (도메인팩 마법사) |
+| "수신자 …" | → **RECIPIENTS** |
+| "키워드 …" | → **KEYWORDS** |
+| "Azure 키 …", "시크릿 …" | → **SECRETS** |
+| "루틴 등록", "스케줄" | → **ROUTINES** |
+
+없으면 STATUS 출력 후, 미설정(`.prmonitor-initialized` 없음 또는 `config/company-profile.yaml` 없음)이면 INSTALL 을 제안한다.
+
+---
+
+## STATUS
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/prmonitor_launch.py" paths
+```
+로 해석된 경로 확인 후:
+
+- 도메인팩: `config/company-profile.yaml` 존재 여부 + `company.name`.
+- 시크릿: 환경변수 `CLAUDE_PLUGIN_OPTION_AZURE_CLIENT_SECRET` 또는 `config/delivery.yaml` 의 Azure 설정 여부(✅/❌만, 값은 절대 표시 X). 있으면 `send-email.py --validate` 로 실제 연결 확인.
+- 수신자: `config/delivery.yaml` 그룹 수 + 파일럿 모드.
+- 키워드: `config/keywords.yaml` boost/exclude 개수.
+- 마지막 실행: `logs/executions/` 최신 파일 날짜.
+
+```
+━━━ PR Monitor 상태 ━━━
+도메인팩: [company.name] / 카테고리 N개
+Azure 인증: ✅ 연결됨 | ❌ 미설정 (→ "Azure 키" 로 설정)
+수신자: N그룹 / 파일럿: ON|OFF
+키워드: 부스트 N · 제외 N
+마지막 실행: [날짜]
+```
+
+---
+
+## INSTALL — 도메인팩 설치 마법사
+
+`config/company-profile.yaml` 이 없거나 사용자가 설치를 요청하면 실행. 먼저 두 갈래를 묻는다:
+
+**A) 기존 도메인팩으로 시작 (번들 제공 예시 도메인팩 = 도메인팩 1호)**
+→ `init` 이 `config-templates/` 의 팩을 `config/` 로 시드한다(이미 대부분 됨). SECRETS + RECIPIENTS 만 안내.
+
+**B) 새 조직 설정 (인터뷰)**
+→ 아래를 한 번에 하나씩 묻고, 답으로 도메인팩 YAML 을 `${CLAUDE_PROJECT_DIR}/config/` 에 생성한다. 각 파일 스키마는 `config-templates/<name>.yaml` 을 본보기로 따른다.
+
+인터뷰 항목 → 생성 파일:
+
+1. **회사·산업** (회사명·영문명·부서·한 줄 소개·경쟁사 목록) → `company-profile.yaml`, `branding.yaml`
+2. **관심 카테고리** (id·한글라벨, 색은 기본 팔레트 자동) → `categories.yaml`
+3. **키워드** (부스트·강제제외·일반제외) → `keywords.yaml`
+4. **소스** (RSS·뉴스 검색쿼리·국가별) → `sources.yaml`
+5. **언어·톤** (출력 언어·문장길이·금지어) → `style.yaml`
+6. **분류 튜닝** (위험 키워드·일반어·이해관계자 가중) → `classify-tuning.yaml`
+7. **PR 검색·톤 렉시콘·매체명** → `pr-queries.yaml`, `tone-lexicon.yaml`, `media.yaml`
+8. **발송 대상** (그룹별 수신자) → `delivery.yaml` 의 `recipients`(시크릿 아님)
+
+생성 후 각 파일을 `python3 -c "import yaml; yaml.safe_load(open(...))"` 로 검증한다.
+
+> [!IMPORTANT]
+> **편집 품질의 한계(`prompt-examples.yaml`)**: 인사이트 합성의 few-shot 예시(좋은 인사이트/거짓 유추/날조 수치 반례)는 그 조직의 *실제 과거 브리핑*과 편집 판단이 있어야 만들 수 있어 **자동 생성되지 않는다**. 마법사는 빈 슬롯 스키마만 깔고, "format(형식)은 강제되지만 편집 품질은 직접 `config/prompt-examples.yaml` 큐레이션이 필요하다"고 안내한다. 1호(번들 예시 도메인팩)는 기존 예시 보유.
+
+---
+
+## SECRETS — Azure 인증 (키체인)
+
+시크릿은 **YAML 에 쓰지 않는다.** 플러그인 설정(userConfig)으로 받아 OS 키체인에 저장된다.
+
+```
+사내 이메일 발송(Microsoft Graph, Mail.Send)을 위해 Azure AD 앱 3개 값이 필요합니다.
+IT 관리자에게 요청해 받은 뒤, Claude Code 플러그인 설정에서 입력하세요:
+  - azure_tenant_id
+  - azure_client_id
+  - azure_client_secret  (민감 — 키체인 저장)
+  - email_from           (발신 주소)
+```
+입력 후:
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/send-email.py" --validate
+```
+연결 정상이면 ✅. (값은 채팅에 표시하지 않는다.)
+
+대체 경로(개발/비플러그인): `config/delivery.yaml` 의 `email.azure` 에 직접. 단 `.gitignore` 필수.
+
+---
+
+## RECIPIENTS / KEYWORDS
+
+- 수신자: `config/delivery.yaml` 의 `recipients` 그룹 편집. "경영진에 cfo@ 추가" → 해당 그룹 `to:` 에 추가. "파일럿 끄기" → `pilot_mode: false`.
+- 키워드: `config/keywords.yaml` 의 `boost`/`exclude` 편집.
+변경 후 "내일 실행부터 반영됩니다" 안내.
+
+---
+
+## ROUTINES — 자동 실행 등록
+
+루틴 정의는 `routines/*.md`. **스케줄 상태는 패키징으로 옮겨지지 않는다**(scheduled-tasks MCP/데스크탑의 외부 메타데이터). 따라서 설치 시 **등록**이 필요하다.
+
+1. `routines/{pr-monitoring-daily,newsletter-insight-mwf}.md` 의 작업경로를 `${CLAUDE_PROJECT_DIR}` 로 치환해 사용.
+2. scheduled-tasks MCP(`create_scheduled_task`)로 등록하거나, 데스크탑 앱 Routines 에서 추가.
+3. 각 루틴을 "Run Now" 1회 실행 → 권한(HTTP fetch·이메일·파일 IO) 사전 부여.
+
+> [!IMPORTANT]
+> **로컬 데스크탑 전용.** 루틴은 Claude Code 데스크탑 앱이 켜져 있을 때만 발화한다. Cowork(클라우드)는 수집이 차단돼 동작하지 않는다.
+
+---
+
+## 키 관리 원칙
+
+- 시크릿은 키체인(userConfig). YAML 평문 금지. 채팅에 키 값 표시 금지(✅/❌만).
+- `config/delivery.yaml`·`.env` 는 `.gitignore` 대상. `keywords.yaml` 등 도메인팩은 추적 가능(시크릿 없음).
+- 사용자가 키를 채팅에 입력하면 즉시 안내만 하고 평문 저장하지 않는다(키체인 경로로 유도).

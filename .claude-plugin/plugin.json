@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "pr-monitor",
+  "displayName": "PR Monitor",
+  "version": "0.1.0",
+  "description": "뉴스 자동화 — 산업 인사이트 뉴스레터 + 자사 PR 모니터링. 도메인팩으로 어떤 조직/산업에도 재사용.",
+  "author": {
+    "name": "Wendy Nam",
+    "email": "sharedwendy999@gmail.com"
+  },
+  "homepage": "https://github.com/Wendy-Nam/pr-monitor-plugin",
+  "repository": "https://github.com/Wendy-Nam/pr-monitor-plugin",
+  "license": "MIT",
+  "keywords": ["news", "monitoring", "newsletter", "pr", "automation", "korean"],
+
+  "hooks": "./hooks/hooks.json",
+
+  "userConfig": {
+    "azure_tenant_id": {
+      "type": "string",
+      "title": "Azure Tenant ID",
+      "description": "Microsoft Graph(Mail.Send)용 Azure AD 테넌트 ID. 이메일 발송 시 필요.",
+      "sensitive": true
+    },
+    "azure_client_id": {
+      "type": "string",
+      "title": "Azure Client ID",
+      "description": "Azure AD 앱 클라이언트 ID.",
+      "sensitive": true
+    },
+    "azure_client_secret": {
+      "type": "string",
+      "title": "Azure Client Secret",
+      "description": "Azure AD 앱 클라이언트 시크릿. OS 키체인에 저장됩니다.",
+      "sensitive": true
+    },
+    "email_from": {
+      "type": "string",
+      "title": "발신 이메일 주소",
+      "description": "리포트 발신 계정 (예: marketing@your-org.com)."
+    }
+  }
+}

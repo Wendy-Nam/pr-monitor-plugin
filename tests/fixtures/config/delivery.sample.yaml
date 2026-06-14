@@ -1,0 +1,29 @@
+# === 이메일 발송 설정 ===
+# delivery.yaml로 복사 후 실제 정보를 입력하세요.
+# ⚠️ client_secret 포함 — .gitignore에 delivery.yaml 추가 필수
+
+email:
+  provider: microsoft_graph
+  from: ""  # 발신자 이메일 (예: you@company.com)
+  azure:
+    tenant_id: ""
+    client_id: ""
+    client_secret: ""
+
+recipients:
+  newsletter_briefing:
+    name: 산업군 인사이트 뉴스레터
+    frequency: "월·수·금 08:00 KST"
+    subject_template: "[뉴스레터] {industry} 동향 및 인사이트 ({date}) - 출처 {source_count}건"
+    to: []  # 수신자 이메일 목록
+
+  marketing_pr_list:
+    name: PR 모니터링
+    frequency: "daily 07:00 KST"
+    to: []
+
+  alerts:
+    name: 시스템 알림
+    to: []
+
+pilot_mode: true

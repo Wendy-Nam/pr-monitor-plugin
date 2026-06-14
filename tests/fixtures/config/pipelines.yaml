@@ -1,0 +1,21 @@
+# 파이프라인 실행 정책 — 주기·수신그룹·제목 등 "바뀌기 쉬운 값"은 여기서만 수정
+#
+# hours        : 수집 시간창 (시간 단위)
+# monday_hours : 월요일 실행 시 시간창 (주말 커버)
+# email_group  : config/delivery.yaml 의 recipients 그룹명과 일치해야 함
+# subject      : {date}=실행 날짜, {count}=건수 치환
+
+newsletter:
+  # 월·수·금 09:30 실행. 직전 실행 이후 구간 커버:
+  #   월(주말 포함, 금 09:30→월 09:30) = 72h / 수·금 = 48h
+  hours: 48
+  monday_hours: 72
+  email_group: "newsletter_briefing"
+  subject: "[뉴스레터] 로봇 산업 인사이트 {date}"
+
+pr_monitoring:
+  # 평일 매일 10:30 실행. 월요일은 주말 커버.
+  hours: 24
+  monday_hours: 72
+  email_group: "marketing_pr_list"
+  subject: "[PR 모니터링] 에이콤로보틱스 자사 언급 ({date}) - {count}건"
