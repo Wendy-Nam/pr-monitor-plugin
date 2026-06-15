@@ -1,7 +1,7 @@
 ---
 name: insight-synthesizer
 description: 외부 팩트 + 자사 맥락 → 산업군 인사이트 뉴스레터 JSON 생성. 단일 컨텍스트 인라인 실행.
-model: claude-sonnet-4-6
+model: claude-haiku-4-5-20251001
 tools:
   - Read
   - Bash
