@@ -979,10 +979,11 @@ def attach_inline_refs(escaped_text: str, articles: list[dict],
 
 
 def headline_inner_html(h: dict, reg: "SourceRegistry | None" = None) -> str:
-    """헤드라인 항목의 본문 HTML(텍스트 + 언어태그 + 출처링크 + 출처번호[n]). li/div 래퍼 없음.
+    """헤드라인 항목의 본문 HTML(텍스트 + 언어태그 + 출처링크). li/div 래퍼 없음.
 
-    reg 가 주어지면 출처 목록 번호 [n] 을 붙인다 — 헤드라인 기사도 본문에 번호로 1회
-    등장시켜, 출처 목록의 모든 번호가 본문 어딘가에 나오도록(고아 번호 방지) 한다.
+    헤드라인의 `/매체명` 이 이미 그 기사로 링크되므로 출처번호 [n] 은 붙이지 않는다
+    (중복·시각 노이즈). 인라인 [n] 번호는 인사이트·카테고리 산문에서만 쓴다.
+    reg 인자는 호출부 호환을 위해 남겨두되 사용하지 않는다.
     """
     url = h.get("url", "") or h.get("source_url", "")
     raw_sname = resolve_media_name(h.get("source", ""))
@@ -996,13 +997,7 @@ def headline_inner_html(h: dict, reg: "SourceRegistry | None" = None) -> str:
         src = f' <span style="color:#a8a29e;font-size:12px;">/{sname}</span>'
     else:
         src = ""
-    ref = ""
-    if reg is not None and url:
-        num = reg.get_num(url)
-        if num:
-            ref = (f' <a href="{esc(url)}" style="color:#a8a29e;font-size:12px;'
-                   f'text-decoration:none;">[{num}]</a>')
-    return f'{esc(h.get("text", ""))}{lang_tag}{src}{ref}'
+    return f'{esc(h.get("text", ""))}{lang_tag}{src}'
 
 
 def render_category_summary_blocks(category_summary: list[dict],
