@@ -8,6 +8,7 @@
 classified → 카테고리별 그룹핑 + 중복 제거 + 구조화.
 insight-synthesizer 가 이 파일을 입력으로 사용.
 """
+from __future__ import annotations  # ponytail: PEP 604 unions on py3.9 venv
 
 import hashlib
 import sys
