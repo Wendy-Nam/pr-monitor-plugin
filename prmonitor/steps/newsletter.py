@@ -44,6 +44,7 @@ args.no_email mirror the bash flags when present.
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -85,6 +86,30 @@ def _exec_log(*, date: str, run_id: str, started: str, status: int,
             warn("실행 로그 기록 실패")
     except OSError:
         warn("실행 로그 기록 실패")
+
+
+def _synth_model_from_spec() -> str:
+    """insight-synthesizer.md frontmatter 의 `model:` 값. 없으면 sonnet 기본.
+
+    raw `claude -p` 는 frontmatter 를 자동 적용하지 않으므로 여기서 읽어 --model 로 넘긴다.
+    """
+    default = "claude-sonnet-4-6"
+    try:
+        spec = (paths.AGENTS_DIR / "insight-synthesizer.md").read_text(encoding="utf-8")
+    except OSError:
+        return default
+    in_fm = False
+    for line in spec.splitlines():
+        if line.strip() == "---":
+            if in_fm:
+                break
+            in_fm = True
+            continue
+        if in_fm and line.lower().startswith("model:"):
+            val = line.split(":", 1)[1].strip().strip('"\'')
+            if val:
+                return val
+    return default
 
 
 def _synth_prompt(date: str) -> str:
@@ -212,8 +237,13 @@ def run(args) -> int:
     # Claude Code 2.1+: --output-format stream-json 은 --verbose 필수 (.sh L111-119).
     # 합성만 성공하면 briefing JSON 이 생기므로, claude 종료코드와 무관하게
     # 이후 briefing 존재 여부로 판단한다 (.sh L112-120).
+    # 합성 모델: insight-synthesizer.md frontmatter 의 선언값을 따른다(없으면 sonnet).
+    # raw `claude -p` 는 agent frontmatter 를 안 읽으므로 여기서 명시하지 않으면
+    # CLI 기본값(Opus)으로 떨어져 ~5배 비싸진다. PRM_SYNTH_MODEL 로 1회 override 가능.
+    synth_model = os.environ.get("PRM_SYNTH_MODEL") or _synth_model_from_spec()
     claude_argv = [
         claude_bin, "-p", prompt,
+        "--model", synth_model,
         "--allowedTools", "Read,Write,Edit,Bash",
         "--output-format", "stream-json",
         "--verbose",
