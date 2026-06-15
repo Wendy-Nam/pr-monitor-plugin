@@ -7,6 +7,7 @@
 
 주가/시황 기사 → 하단 별도 섹션.
 """
+from __future__ import annotations  # ponytail: PEP 604 unions on py3.9 venv
 
 import csv
 import json
@@ -667,6 +668,12 @@ def main():
         tone = detect_tone(title, body)
         evidence = extract_evidence(title, body)
         summary = extract_summary(body, evidence)
+        # ponytail: 본문 추출 실패 시 GNews RSS 스니펫(이미 보유)을 evidence 폴백.
+        # 관련 있는데 본문 미추출인 건의 '언급 위치'를 무료로 복구. 본문 fetch는 그래도 부족할 때.
+        if not evidence:
+            snippet = re.sub(r"<[^>]+>", " ", a.get("rss_snippet", "") or "").strip()
+            if snippet:
+                evidence = extract_evidence(title, snippet) or snippet[:160]
         title_lower = title.lower()
         stock_in_title = any(k in title_lower for k in STOCK_KW)
         is_direct = any(kw in title_lower for kw in SELF_KW) and not stock_in_title

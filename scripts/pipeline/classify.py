@@ -234,26 +234,26 @@ def match_competitors(title: str, text: str, profile: dict) -> list[str]:
 # 이해관계자 가중치 — 주요 주주·핵심 공급사 등의 자사 분야 움직임은 직접 이해관계.
 # classify-tuning stakeholder_boosts 에서 온다. 빈 목록이면(예시 도메인 기본값) 가중치 없음.
 _STAKEHOLDER_BOOSTS = _TUNING.get("stakeholder_boosts") or []
-_SAMSUNG_BOOST = _STAKEHOLDER_BOOSTS[0] if _STAKEHOLDER_BOOSTS else {}
-_SAMSUNG_MATCH_TERMS = [t.lower() for t in (_SAMSUNG_BOOST.get("match") or [])]
-_SAMSUNG_APPLIANCE_NOISE = list(_SAMSUNG_BOOST.get("noise_terms") or [])
-_SAMSUNG_BOOST_WEIGHT = _SAMSUNG_BOOST.get("weight", 0)
+_STAKEHOLDER_BOOST = _STAKEHOLDER_BOOSTS[0] if _STAKEHOLDER_BOOSTS else {}
+_STAKEHOLDER_MATCH_TERMS = [t.lower() for t in (_STAKEHOLDER_BOOST.get("match") or [])]
+_STAKEHOLDER_NOISE_TERMS = list(_STAKEHOLDER_BOOST.get("noise_terms") or [])
+_STAKEHOLDER_BOOST_WEIGHT = _STAKEHOLDER_BOOST.get("weight", 0)
 
 
-def samsung_boost(title: str) -> int:
-    """제목에 이해관계자(최대주주) 언급 + 노이즈 아님 → 가중치.
+def stakeholder_boost(title: str) -> int:
+    """제목에 이해관계자(최대주주 등) 언급 + 노이즈 아님 → 가중치.
 
     트리거 용어·노이즈·가중치 모두 classify-tuning stakeholder_boosts 에서 온다.
     이해관계자 미설정(빈 목록)이면 항상 0.
     """
-    if not _SAMSUNG_MATCH_TERMS:
+    if not _STAKEHOLDER_MATCH_TERMS:
         return 0
     t = title.lower()
-    if not any(m in t for m in _SAMSUNG_MATCH_TERMS):
+    if not any(m in t for m in _STAKEHOLDER_MATCH_TERMS):
         return 0
-    if any(n in t for n in _SAMSUNG_APPLIANCE_NOISE):
+    if any(n in t for n in _STAKEHOLDER_NOISE_TERMS):
         return 0
-    return _SAMSUNG_BOOST_WEIGHT
+    return _STAKEHOLDER_BOOST_WEIGHT
 
 
 # ── relevance_score 산정 ─────────────────────────────────────
@@ -274,8 +274,8 @@ def calc_relevance(article: dict, boost_hits: list[str],
     if competitors:
         score += 2
 
-    # 삼성전자(최대주주) 로봇 분야 움직임 — 자사 직접 이해관계
-    score += samsung_boost(article.get("title", ""))
+    # 이해관계자(최대주주 등) 자사 분야 움직임 — 자사 직접 이해관계
+    score += stakeholder_boost(article.get("title", ""))
 
     # 카테고리 매칭 (uncategorized 아닌 경우)
     if categories and categories != ["uncategorized"]:
