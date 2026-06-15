@@ -426,14 +426,12 @@ python3 scripts/newsletter/check-coverage-gaps.py {DATE}
 ```
 
 - **exit 0** (`✓ 커버리지 갭 없음`) → 완료. 그대로 종료.
-- **exit 1** → stdout의 갭 목록(`[{"category": ..., "headline": ...}]`)을 읽고, 각 갭 기사를 해당
-  카테고리의 `category_summary[].summary` 산문에 1문장 이내로 반영하거나 `headlines` 에 추가한다.
-  전체 재생성 금지 — `category_summary`/`headlines`만 수정.
-- **목표는 exit 0(갭 0).** 갭이 남는 한 위를 반복한다(최대 3회). 수집된 모든 기사
-  (tier1+tier2)는 본문(헤드라인 또는 산문)에 최소 1회 등장해야 한다 — 그래야 출처 목록의
-  모든 번호 [n] 이 본문 어딘가에 나타난다(고아 번호 0).
-- ⚠️ format.py 의 newsletter-facts 백필은 **출처 목록에만** 번호를 채울 뿐 본문에 surface
-  하지 않는다. 따라서 백필에 기대지 말고 갭을 직접 해소하라 — 본문 등장은 합성기 책임이다.
+- **exit 1** → stdout의 갭 목록(`[{"category": ..., "headline": ...}]`)을 읽고, **중요한** 갭 기사를
+  해당 카테고리의 `category_summary[].summary` 산문에 1문장 이내로 반영한다. 전체 재생성 금지 —
+  `category_summary`만 수정. 재검증 1회면 충분.
+- 사소한 미커버 기사를 산문에 욱여넣지 않아도 된다 — format.py 가 카테고리별로 미인용 수집
+  기사를 "이 밖에 ~ 등도 주목됐다 [n]" 으로 자동 쓸어담아 모든 출처번호가 본문에 등장하게
+  한다. 합성기는 **중요한 것만 잘 서술**하고, 나머지 sweep 은 렌더러에 맡긴다.
 
 ## 사실·문장 단위 인용 (필수)
 
