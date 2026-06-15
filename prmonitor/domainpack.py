@@ -47,3 +47,56 @@ def get(name: str, key: str, default=None):
         return load_pack(name).get(key, default)
     except DomainPackError:
         return default
+
+
+# 예시 도메인팩에서 흘러나오는 자리표시 브랜딩(콘토소). 이게 보이면 회사명으로 대체.
+_PLACEHOLDER_TOKENS = ("contoso", "콘토소")
+
+
+def _ascii_name(*candidates) -> str:
+    """후보들 중 ASCII(영문) 표기를 찾아 반환. 없으면 ''."""
+    for c in candidates:
+        for item in (c if isinstance(c, (list, tuple)) else [c]):
+            s = (item or "").strip()
+            if s and all(ord(ch) < 128 for ch in s):
+                return s
+    return ""
+
+
+def company_names() -> tuple[str, str]:
+    """(한글 회사명, 영문 회사명 or '') — company-profile / pr-queries 에서 도출."""
+    try:
+        prof = (load_pack("company-profile").get("company") or {})
+    except DomainPackError:
+        prof = {}
+    ko = (prof.get("name") or "").strip()
+    en = _ascii_name(prof.get("name_en"), prof.get("english_name"), prof.get("aliases"))
+    if not en:
+        en = _ascii_name(get("pr-queries", "self_aliases", []))
+    return ko, en
+
+
+def branding(key: str) -> str:
+    """branding.yaml 값을 돌려준다. 비었거나 예시 자리표시(콘토소)면
+    company-profile 회사명(영문 우선)에서 파생한 기본값으로 대체한다.
+    → 새 조직이 branding.yaml 을 손대지 않아도 자기 회사명이 헤더에 나온다.
+    """
+    try:
+        pack = load_pack("branding")
+    except DomainPackError:
+        pack = {}
+    val = (pack.get(key) or "").strip()
+    if val and not any(tok in val.lower() for tok in _PLACEHOLDER_TOKENS):
+        return val
+
+    ko, en = company_names()
+    name = en or ko or "Company"
+    upper = name.upper()
+    return {
+        "org_name": ko or name,
+        "org_name_en": en or name,
+        "dept": "Intelligence",
+        "html_header_pr": f"{upper} · PR MONITORING",
+        "html_header_newsletter": f"{upper} · INDUSTRY INSIGHT",
+        "html_footer": f"{name} · Intelligence",
+    }.get(key, name)

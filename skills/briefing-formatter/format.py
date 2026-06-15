@@ -83,54 +83,27 @@ CAT_COLORS = {
     cid: _CAT_DEFS[cid]["color"]
     for cid in _CAT_PACK.get("order", [])
 }
-# legacy/fallback categories — 도메인팩 fallbacks 에 정의된 것만 적용(도메인 무관).
-# (구 도메인: industrial_robot, self 등. reference/default 는 CAT_COLORS 에 미포함)
-for _fb_cid, _fb in _CAT_FALLBACKS.items():
-    if _fb_cid in ("reference", "default"):
-        continue
-    if "color" in _fb:
-        CAT_COLORS[_fb_cid] = _fb["color"]
-
 CAT_DOT_CLASSES = {
     cid: _CAT_DEFS[cid]["dot_class"]
     for cid in _CAT_PACK.get("order", [])
 }
-for _fb_cid, _fb in _CAT_FALLBACKS.items():
-    if _fb_cid in ("reference", "default"):
-        continue
-    if "dot_class" in _fb:
-        CAT_DOT_CLASSES[_fb_cid] = _fb["dot_class"]
-
-
-def _build_cat_names() -> dict:
-    """(label_ko, color) 매핑을 도메인팩 categories.yaml 에서 동적 구성(도메인 무관).
-
-    order 의 정식 카테고리 + fallbacks 의 보조 카테고리. 카테고리 id 를 코드에
-    하드코딩하지 않는다(구버전은 humanoid/cobots/industrial_robot 등을 직접 나열).
-    """
-    names: dict = {}
-    for cid in CAT_ORDER:
-        d = _CAT_DEFS.get(cid)
-        if d and "label_ko" in d and "color" in d:
-            names[cid] = (d["label_ko"], d["color"])
-    for fc, fb in _CAT_FALLBACKS.items():
-        if "label_ko" in fb and "color" in fb:
-            names.setdefault(fc, (fb["label_ko"], fb["color"]))
-    _default = _CAT_FALLBACKS.get("default", {})
-    names.setdefault("기타", (_default.get("label_ko", "기타"), _default.get("color", "#78716c")))
-    return names
+# fallback 카테고리(예: self·industrial_robot 등 도메인팩별)도 color/dot_class 가 있으면 병합.
+# 키를 하드코딩하지 않는다 — 도메인팩에 없으면 그냥 건너뛴다.
+for _fid, _fdef in _CAT_FALLBACKS.items():
+    if isinstance(_fdef, dict):
+        if _fdef.get("color"):
+            CAT_COLORS.setdefault(_fid, _fdef["color"])
+        if _fdef.get("dot_class"):
+            CAT_DOT_CLASSES.setdefault(_fid, _fdef["dot_class"])
 
 CAT_ORDER = list(_CAT_PACK.get("order", []))
 
 # ── 브랜딩 문자열 (도메인팩 branding.yaml 에서 구성) ──
 # 헤더/푸터를 하드코딩하지 않고 도메인팩에서 읽는다. 실제 값은 도메인팩에서 오며,
 # 폴백은 최후의 중립 기본값(특정 조직 브랜딩 없음).
-try:
-    _BRANDING_PACK = domainpack.load_pack("branding")
-except Exception:
-    _BRANDING_PACK = {}
-HTML_HEADER_NEWSLETTER = _BRANDING_PACK.get("html_header_newsletter", "WEEKLY INTELLIGENCE")
-HTML_FOOTER = _BRANDING_PACK.get("html_footer", "")
+# 브랜딩: branding.yaml 값 우선, 비었거나 예시 자리표시면 회사명에서 파생(domainpack.branding).
+HTML_HEADER_NEWSLETTER = domainpack.branding("html_header_newsletter")
+HTML_FOOTER = domainpack.branding("html_footer")
 
 # ── CSS ────────────────────────────────────────────────────────
 CSS = """\
@@ -305,8 +278,13 @@ CSS = """\
     line-height: 1.65;
   }
 
-  /* color tokens (도메인팩 categories.yaml 에서 생성) */
-__CAT_COLOR_TOKENS__
+  /* color tokens */
+  .c-humanoid  { background: #7c3aed; }
+  .c-industrial { background: #dc2626; }
+  .c-cobot     { background: #2563eb; }
+  .c-platform  { background: #059669; }
+  .c-amr       { background: #d97706; }
+  .c-funding   { background: #6b7280; }
 
   @media (max-width: 600px) {
     body { padding: 20px 14px !important; }
@@ -317,26 +295,6 @@ __CAT_COLOR_TOKENS__
     .footer { font-size: 10px !important; }
     .fact-item { flex-direction: column !important; gap: 4px !important; }
   }"""
-
-
-def _cat_color_tokens() -> str:
-    """카테고리 dot 색 CSS 를 도메인팩 categories.yaml(dot_class+color)에서 생성.
-
-    구버전은 .c-humanoid/.c-cobot 등 로봇 클래스를 CSS 에 하드코딩했다 → 비로봇
-    도메인에서 dot 색이 안 나옴. order + fallbacks 의 dot_class 를 동적으로 깐다.
-    """
-    seen: set = set()
-    rules: list[str] = []
-    sources = [_CAT_DEFS.get(cid, {}) for cid in CAT_ORDER] + list(_CAT_FALLBACKS.values())
-    for d in sources:
-        cls, color = d.get("dot_class"), d.get("color")
-        if cls and color and cls not in seen:
-            seen.add(cls)
-            rules.append(f"  .{cls} {{ background: {color}; }}")
-    return "\n".join(rules)
-
-
-CSS = CSS.replace("__CAT_COLOR_TOKENS__", _cat_color_tokens())
 
 
 # ── 날짜 유틸 ─────────────────────────────────────────────────
@@ -1097,8 +1055,19 @@ def render_sources(reg: SourceRegistry, total_articles: int = 0) -> str:
     if not entries:
         return ""
 
-    # (label, color) 튜플 — 도메인팩 categories.yaml 에서 동적 구성
-    CAT_NAMES = _build_cat_names()
+    # (label, color) 튜플 — 도메인팩 categories.yaml 에서 일반적으로 구성.
+    # 카테고리 id 를 하드코딩하지 않는다(도메인팩마다 다름).
+    CAT_NAMES = {
+        cid: (_CAT_DEFS[cid]["label_ko"], _CAT_DEFS[cid]["color"])
+        for cid in _CAT_PACK.get("order", [])
+        if cid in _CAT_DEFS
+    }
+    for _fid, _fdef in _CAT_FALLBACKS.items():
+        if isinstance(_fdef, dict) and _fdef.get("label_ko") and _fdef.get("color"):
+            CAT_NAMES.setdefault(_fid, (_fdef["label_ko"], _fdef["color"]))
+    # "기타" 별칭 → default(없으면 중립)
+    _dflt = _CAT_FALLBACKS.get("default") or {}
+    CAT_NAMES.setdefault("기타", (_dflt.get("label_ko", "기타"), _dflt.get("color", "#9ca3af")))
 
     cat_groups: dict[str, list] = {}
     for e in entries:
@@ -1131,8 +1100,17 @@ def render_sources(reg: SourceRegistry, total_articles: int = 0) -> str:
 def _render_sources_legacy(entries: list[dict], total_articles: int,
                            reg: "SourceRegistry") -> str:
     """Full source list with descriptions — kept for reference, not used in default render."""
-    # (label, color) 튜플 — 도메인팩 categories.yaml 에서 동적 구성
-    CAT_NAMES = _build_cat_names()
+    # (label, color) 튜플 — 도메인팩 categories.yaml 에서 일반적으로 구성(카테고리 id 하드코딩 X).
+    CAT_NAMES = {
+        cid: (_CAT_DEFS[cid]["label_ko"], _CAT_DEFS[cid]["color"])
+        for cid in _CAT_PACK.get("order", [])
+        if cid in _CAT_DEFS
+    }
+    for _fid, _fdef in _CAT_FALLBACKS.items():
+        if isinstance(_fdef, dict) and _fdef.get("label_ko") and _fdef.get("color"):
+            CAT_NAMES.setdefault(_fid, (_fdef["label_ko"], _fdef["color"]))
+    _dflt = _CAT_FALLBACKS.get("default") or {}
+    CAT_NAMES.setdefault("기타", (_dflt.get("label_ko", "기타"), _dflt.get("color", "#9ca3af")))
 
     cat_groups: dict[str, list] = {}
     for e in entries:
