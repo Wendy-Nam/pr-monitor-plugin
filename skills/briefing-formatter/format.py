@@ -156,7 +156,6 @@ CSS = """\
   .summary-block .sb-hd .cat-dot { margin-right: 10px; }
   .summary-block p { font-size: 14px; color: #292524; line-height: 1.65; }
   .summary-block p + p { margin-top: 18px; }
-  .summary-block .sb-chips { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
 
   /* ── Section heading ── */
   h2 {
@@ -979,8 +978,12 @@ def attach_inline_refs(escaped_text: str, articles: list[dict],
     return out
 
 
-def headline_inner_html(h: dict) -> str:
-    """헤드라인 항목의 본문 HTML(텍스트 + 언어태그 + 출처링크). li/div 래퍼 없음."""
+def headline_inner_html(h: dict, reg: "SourceRegistry | None" = None) -> str:
+    """헤드라인 항목의 본문 HTML(텍스트 + 언어태그 + 출처링크 + 출처번호[n]). li/div 래퍼 없음.
+
+    reg 가 주어지면 출처 목록 번호 [n] 을 붙인다 — 헤드라인 기사도 본문에 번호로 1회
+    등장시켜, 출처 목록의 모든 번호가 본문 어딘가에 나오도록(고아 번호 방지) 한다.
+    """
     url = h.get("url", "") or h.get("source_url", "")
     raw_sname = resolve_media_name(h.get("source", ""))
     sname = esc(raw_sname)
@@ -993,7 +996,13 @@ def headline_inner_html(h: dict) -> str:
         src = f' <span style="color:#a8a29e;font-size:12px;">/{sname}</span>'
     else:
         src = ""
-    return f'{esc(h.get("text", ""))}{lang_tag}{src}'
+    ref = ""
+    if reg is not None and url:
+        num = reg.get_num(url)
+        if num:
+            ref = (f' <a href="{esc(url)}" style="color:#a8a29e;font-size:12px;'
+                   f'text-decoration:none;">[{num}]</a>')
+    return f'{esc(h.get("text", ""))}{lang_tag}{src}{ref}'
 
 
 def render_category_summary_blocks(category_summary: list[dict],
@@ -1386,7 +1395,7 @@ def build_html(data: dict, date_str: str,
                 )
                 for h in items:
                     html += (f'  <div style="font-size:14px;padding:4px 0;color:#292524;">'
-                             f'{headline_inner_html(h)}</div>\n')
+                             f'{headline_inner_html(h, reg)}</div>\n')
                 html += '</div>\n'
 
         # 카테고리별 헤드라인은 '카테고리별 동향' 블록으로 이관(중복 제거).
@@ -1398,17 +1407,7 @@ def build_html(data: dict, date_str: str,
         if etc:
             html += '<div class="hl-group">\n  <div class="hl-group-hd">기타</div>\n  <ul>\n'
             for h in etc:
-                url = h.get("url", "") or h.get("source_url", "")
-                raw_sname = resolve_media_name(h.get("source", ""))
-                sname = esc(raw_sname)
-                lang_tag = '' if _is_korean_media(raw_sname, h.get("url", "") or h.get("source_url", "")) else ' <span style="color:#c4b5a4;font-size:11px;">(영문)</span>'
-                if url and sname:
-                    src = f' <a href="{esc(url)}" style="color:#a8a29e;font-size:12px;text-decoration:none;">/{sname}</a>'
-                elif sname:
-                    src = f' <span style="color:#a8a29e;font-size:12px;">/{sname}</span>'
-                else:
-                    src = ""
-                html += f'    <li>{esc(h.get("text", ""))}{lang_tag}{src}</li>\n'
+                html += f'    <li>{headline_inner_html(h, reg)}</li>\n'
             html += '  </ul>\n</div>\n'
 
     # 이번 호 등장 기업 — 경쟁사 동향 뒤, 인사이트 직전.

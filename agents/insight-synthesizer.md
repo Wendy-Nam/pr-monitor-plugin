@@ -419,5 +419,19 @@ python3 scripts/newsletter/check-coverage-gaps.py {DATE}
 ```
 
 - **exit 0** (`✓ 커버리지 갭 없음`) → 완료. 그대로 종료.
-- **exit 1** → stdout의 갭 목록(`[{"category": ..., "headline": ...}]`)을 읽고, 각 갭 카테고리의 `category_summary[].summary`에 해당 기사를 1문장 이내로 반영해 JSON을 다시 저장한다. 전체 재생성 금지 — `category_summary`만 수정.
-- 재검증은 **1회만**. 2차 검증도 실패하면 그대로 종료한다 (format.py가 헤드라인 자동 보완으로 최후 방어).
+- **exit 1** → stdout의 갭 목록(`[{"category": ..., "headline": ...}]`)을 읽고, 각 갭 기사를 해당
+  카테고리의 `category_summary[].summary` 산문에 1문장 이내로 반영하거나 `headlines` 에 추가한다.
+  전체 재생성 금지 — `category_summary`/`headlines`만 수정.
+- **목표는 exit 0(갭 0).** 갭이 남는 한 위를 반복한다(최대 3회). 수집된 모든 기사
+  (tier1+tier2)는 본문(헤드라인 또는 산문)에 최소 1회 등장해야 한다 — 그래야 출처 목록의
+  모든 번호 [n] 이 본문 어딘가에 나타난다(고아 번호 0).
+- ⚠️ format.py 의 newsletter-facts 백필은 **출처 목록에만** 번호를 채울 뿐 본문에 surface
+  하지 않는다. 따라서 백필에 기대지 말고 갭을 직접 해소하라 — 본문 등장은 합성기 책임이다.
+
+## 사실·문장 단위 인용 (필수)
+
+`insights`(observation·implication·근거)와 `category_summary` 산문의 **모든 사실 주장은
+근거 기사의 `ref`(출처 id)로 뒷받침**되어야 한다. format.py 의 attach_inline_refs 가 ref 를
+인라인 `[n]` 으로 렌더하므로, 산문은 근거 기사의 제목 키워드(회사명·제품명·수치)를 실제로
+포함해 매칭이 걸리도록 쓴다. 키워드 없이 추상적으로만 서술하면 인용이 안 붙는다 —
+"한 문장 = 적어도 한 근거" 를 지키고, 근거 없는 단정은 삭제한다.
