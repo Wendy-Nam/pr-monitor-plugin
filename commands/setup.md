@@ -92,6 +92,8 @@ Azure 인증: ✅ 연결됨 | ❌ 미설정 (→ "Azure 키" 로 설정)
 5. **언어·톤** (출력 언어·문장길이·금지어) → `style.yaml`
 6. **분류 튜닝** (위험 키워드·일반어·이해관계자 가중) → `classify-tuning.yaml`
 7. **PR 검색·톤 렉시콘·매체명** → `pr-queries.yaml`, `tone-lexicon.yaml`, `media.yaml`
+   - 자사명 변형을 모두 묻는다: 한글·영문 공식명, **띄어쓰기/공백 유무 변형**, 로마자·약칭·
+     구 사명·티커. 영문 변형은 **소문자판도 함께** `self_aliases` 에 넣는다(매칭 대소문자 이슈).
 8. **발송 대상** (그룹별 수신자) → `delivery.yaml` 의 `recipients`(시크릿 아님)
 
 생성 후 각 파일을 `python3 -c "import yaml; yaml.safe_load(open(...))"` 로 검증한다.
