@@ -4,11 +4,13 @@
 # monday_hours : 월요일 실행 시 시간창 (주말 커버)
 # email_group  : config/delivery.yaml 의 recipients 그룹명과 일치해야 함
 # subject      : {date}=실행 날짜, {count}=건수 치환
+# send_email   : false 면 발송 영구 차단(HTML만 생성). 테스트·검토용. 기본 true.
 
 newsletter:
   # 월·수·금 09:30 실행. 직전 실행 이후 구간 커버:
   #   월(주말 포함, 금 09:30→월 09:30) = 72h / 수·금 = 48h
   hours: 48
+  send_email: true   # ← false 로 두면 발송 안 함 (HTML만 생성)
   monday_hours: 72
   email_group: "newsletter_briefing"
   subject: "[뉴스레터] EV 산업 인사이트 {date}"
