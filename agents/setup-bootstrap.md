@@ -43,6 +43,14 @@ tools:
 
 ## 절차
 
+### 0. 기존 파일 보호 (쓰기 전 필수)
+어떤 파일을 `Write` 하기 전에 `${CLAUDE_PROJECT_DIR}/config/` 를 먼저 확인한다.
+- `company-profile.yaml` 이 이미 있고 `company.name` 이 예시값(콘토소 등)이 아니면 →
+  **사용자 실데이터.** 절대 말없이 덮지 않는다. 호출자(메인 스레드)에 "이미 [name]
+  도메인팩이 있습니다. 백업 후 진행할까요?" 를 돌려주고 승인 전엔 쓰지 않는다.
+- 진행이 승인되면 덮어쓰기 전 `config/` 를 `config.bak-$(date +%F-%H%M%S)/` 로 복사한다(삭제 X).
+- 번들 시드 기본값(미편집 예시 도메인팩)만 있으면 그대로 진행해도 된다(백업은 선택).
+
 ### 1. 리서치 (WebSearch / WebFetch)
 - "{회사명} 경쟁사", "{industry} top companies/market leaders", "{industry} 시장 점유율"
   등으로 **주요 경쟁사 8~12곳**을 찾는다. 글로벌 + 국내 혼합. 각 회사의 영문명·별칭 수집.
