@@ -83,15 +83,42 @@ CAT_COLORS = {
     cid: _CAT_DEFS[cid]["color"]
     for cid in _CAT_PACK.get("order", [])
 }
-# legacy fallbacks: industrial_robot, self (reference/default 는 CAT_COLORS 에 미포함 — 원본과 일치)
-CAT_COLORS["industrial_robot"] = _CAT_FALLBACKS["industrial_robot"]["color"]
-CAT_COLORS["self"] = _CAT_FALLBACKS["self"]["color"]
+# legacy/fallback categories — 도메인팩 fallbacks 에 정의된 것만 적용(도메인 무관).
+# (구 도메인: industrial_robot, self 등. reference/default 는 CAT_COLORS 에 미포함)
+for _fb_cid, _fb in _CAT_FALLBACKS.items():
+    if _fb_cid in ("reference", "default"):
+        continue
+    if "color" in _fb:
+        CAT_COLORS[_fb_cid] = _fb["color"]
 
 CAT_DOT_CLASSES = {
     cid: _CAT_DEFS[cid]["dot_class"]
     for cid in _CAT_PACK.get("order", [])
 }
-CAT_DOT_CLASSES["industrial_robot"] = _CAT_FALLBACKS["industrial_robot"]["dot_class"]  # legacy
+for _fb_cid, _fb in _CAT_FALLBACKS.items():
+    if _fb_cid in ("reference", "default"):
+        continue
+    if "dot_class" in _fb:
+        CAT_DOT_CLASSES[_fb_cid] = _fb["dot_class"]
+
+
+def _build_cat_names() -> dict:
+    """(label_ko, color) 매핑을 도메인팩 categories.yaml 에서 동적 구성(도메인 무관).
+
+    order 의 정식 카테고리 + fallbacks 의 보조 카테고리. 카테고리 id 를 코드에
+    하드코딩하지 않는다(구버전은 humanoid/cobots/industrial_robot 등을 직접 나열).
+    """
+    names: dict = {}
+    for cid in CAT_ORDER:
+        d = _CAT_DEFS.get(cid)
+        if d and "label_ko" in d and "color" in d:
+            names[cid] = (d["label_ko"], d["color"])
+    for fc, fb in _CAT_FALLBACKS.items():
+        if "label_ko" in fb and "color" in fb:
+            names.setdefault(fc, (fb["label_ko"], fb["color"]))
+    _default = _CAT_FALLBACKS.get("default", {})
+    names.setdefault("기타", (_default.get("label_ko", "기타"), _default.get("color", "#78716c")))
+    return names
 
 CAT_ORDER = list(_CAT_PACK.get("order", []))
 
@@ -278,13 +305,8 @@ CSS = """\
     line-height: 1.65;
   }
 
-  /* color tokens */
-  .c-humanoid  { background: #7c3aed; }
-  .c-industrial { background: #dc2626; }
-  .c-cobot     { background: #2563eb; }
-  .c-platform  { background: #059669; }
-  .c-amr       { background: #d97706; }
-  .c-funding   { background: #6b7280; }
+  /* color tokens (도메인팩 categories.yaml 에서 생성) */
+__CAT_COLOR_TOKENS__
 
   @media (max-width: 600px) {
     body { padding: 20px 14px !important; }
@@ -295,6 +317,26 @@ CSS = """\
     .footer { font-size: 10px !important; }
     .fact-item { flex-direction: column !important; gap: 4px !important; }
   }"""
+
+
+def _cat_color_tokens() -> str:
+    """카테고리 dot 색 CSS 를 도메인팩 categories.yaml(dot_class+color)에서 생성.
+
+    구버전은 .c-humanoid/.c-cobot 등 로봇 클래스를 CSS 에 하드코딩했다 → 비로봇
+    도메인에서 dot 색이 안 나옴. order + fallbacks 의 dot_class 를 동적으로 깐다.
+    """
+    seen: set = set()
+    rules: list[str] = []
+    sources = [_CAT_DEFS.get(cid, {}) for cid in CAT_ORDER] + list(_CAT_FALLBACKS.values())
+    for d in sources:
+        cls, color = d.get("dot_class"), d.get("color")
+        if cls and color and cls not in seen:
+            seen.add(cls)
+            rules.append(f"  .{cls} {{ background: {color}; }}")
+    return "\n".join(rules)
+
+
+CSS = CSS.replace("__CAT_COLOR_TOKENS__", _cat_color_tokens())
 
 
 # ── 날짜 유틸 ─────────────────────────────────────────────────
@@ -1055,17 +1097,8 @@ def render_sources(reg: SourceRegistry, total_articles: int = 0) -> str:
     if not entries:
         return ""
 
-    # (label, color) 튜플 — 도메인팩 categories.yaml 에서 구성
-    CAT_NAMES = {
-        "industrial_robot":       (_CAT_FALLBACKS["industrial_robot"]["label_ko"], _CAT_FALLBACKS["industrial_robot"]["color"]),
-        "humanoid":               (_CAT_DEFS["humanoid"]["label_ko"],               _CAT_DEFS["humanoid"]["color"]),
-        "cobots":                 (_CAT_DEFS["cobots"]["label_ko"],                 _CAT_DEFS["cobots"]["color"]),
-        "manufacturing_platform": (_CAT_DEFS["manufacturing_platform"]["label_ko"], _CAT_DEFS["manufacturing_platform"]["color"]),
-        "amr":                    (_CAT_DEFS["amr"]["label_ko"],                    _CAT_DEFS["amr"]["color"]),
-        "funding":                (_CAT_DEFS["funding"]["label_ko"],                _CAT_DEFS["funding"]["color"]),
-        "reference":              (_CAT_FALLBACKS["reference"]["label_ko"],         _CAT_FALLBACKS["reference"]["color"]),
-        "기타":                   (_CAT_FALLBACKS["default"]["label_ko"],           _CAT_FALLBACKS["reference"]["color"]),
-    }
+    # (label, color) 튜플 — 도메인팩 categories.yaml 에서 동적 구성
+    CAT_NAMES = _build_cat_names()
 
     cat_groups: dict[str, list] = {}
     for e in entries:
@@ -1098,18 +1131,8 @@ def render_sources(reg: SourceRegistry, total_articles: int = 0) -> str:
 def _render_sources_legacy(entries: list[dict], total_articles: int,
                            reg: "SourceRegistry") -> str:
     """Full source list with descriptions — kept for reference, not used in default render."""
-    # (label, color) 튜플 — 도메인팩 categories.yaml 에서 구성 (other_industrial 포함)
-    CAT_NAMES = {
-        "industrial_robot":       (_CAT_FALLBACKS["industrial_robot"]["label_ko"], _CAT_FALLBACKS["industrial_robot"]["color"]),
-        "humanoid":               (_CAT_DEFS["humanoid"]["label_ko"],               _CAT_DEFS["humanoid"]["color"]),
-        "cobots":                 (_CAT_DEFS["cobots"]["label_ko"],                 _CAT_DEFS["cobots"]["color"]),
-        "manufacturing_platform": (_CAT_DEFS["manufacturing_platform"]["label_ko"], _CAT_DEFS["manufacturing_platform"]["color"]),
-        "amr":                    (_CAT_DEFS["amr"]["label_ko"],                    _CAT_DEFS["amr"]["color"]),
-        "funding":                (_CAT_DEFS["funding"]["label_ko"],                _CAT_DEFS["funding"]["color"]),
-        "other_industrial":       (_CAT_DEFS["other_industrial"]["label_ko"],       _CAT_DEFS["other_industrial"]["color"]),
-        "reference":              (_CAT_FALLBACKS["reference"]["label_ko"],         _CAT_FALLBACKS["reference"]["color"]),
-        "기타":                   (_CAT_FALLBACKS["default"]["label_ko"],           _CAT_FALLBACKS["reference"]["color"]),
-    }
+    # (label, color) 튜플 — 도메인팩 categories.yaml 에서 동적 구성
+    CAT_NAMES = _build_cat_names()
 
     cat_groups: dict[str, list] = {}
     for e in entries:
