@@ -48,6 +48,34 @@ KEEP_FIELDS = {
 }
 
 
+def _load_self_aliases() -> list[str]:
+    """pr-queries.yaml self_aliases 로드 (소문자). 자사 기사 facts 유입 차단용."""
+    candidates = [
+        paths.PROJECT_DIR / "config" / "pr-queries.yaml",
+        Path(__file__).resolve().parent.parent.parent.parent / "config" / "pr-queries.yaml",
+    ]
+    for p in candidates:
+        if p.exists():
+            try:
+                import yaml
+                data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+                return [str(a).lower() for a in data.get("self_aliases", []) if a]
+            except Exception:
+                pass
+    return []
+
+
+_SELF_ALIASES: list[str] = []
+
+
+def _is_self_article(title: str, summary: str) -> bool:
+    global _SELF_ALIASES
+    if not _SELF_ALIASES:
+        _SELF_ALIASES = _load_self_aliases()
+    text = (title + " " + summary).lower()
+    return any(a in text for a in _SELF_ALIASES)
+
+
 def load_facts(date_str: str) -> dict:
     path = FACTS_DIR / f"newsletter-facts-{date_str}.json"
     if not path.exists():
@@ -96,6 +124,8 @@ def extract_tier1(facts: dict) -> dict:
         cat_id = cat["category_id"]
         tier1_articles = []
         for a in cat.get("facts", []):
+            if _is_self_article(a.get("title", ""), a.get("summary", "")):
+                continue  # 자사 기사는 newsletter facts 제외 (PR 클리핑 전담)
             if a.get("tier") == 1:
                 tier1_articles.append(compress_article(a))
             else:
