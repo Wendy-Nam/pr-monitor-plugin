@@ -49,7 +49,7 @@ from prmonitor import domainpack
 _PR_QUERIES = domainpack.load_pack("pr-queries")
 _TONE_LEXICON = domainpack.load_pack("tone-lexicon")
 _MEDIA = domainpack.load_pack("media")
-_BRANDING = domainpack.load_pack("branding")
+# 브랜딩은 domainpack.branding() 로 조회(자리표시→회사명 파생).
 
 # 기자명으로 오인되기 쉬운 매체·통신사명 (byline 추출 시 제외)
 MEDIA_NAMES = set(_MEDIA["outlet_names"])
@@ -187,7 +187,7 @@ def classify_and_summarize_batch(rows: list[dict], n_direct: int) -> tuple[dict[
     """
     if not rows or not CLAUDE_BIN:
         return {}, {}
-    org_name = _BRANDING["org_name"]
+    org_name = domainpack.branding("org_name")
     lines = [
         f"각 기사가 '{org_name}' 입장에서 긍정·중립·부정 중 무엇인지 판정해.",
         f"추가로 0~{n_direct - 1}번 기사(자사 직접 언급)는 PR 관점 한 줄 요약도 붙여."
@@ -959,7 +959,7 @@ def main():
 
         # LLM 프롬프트: 편집 기사 제목+언급위치 + 주가 주요 제목
         prompt_lines = [
-            f"당신은 {_BRANDING['org_name']} 마케팅팀 PR 담당자입니다.",
+            f"당신은 {domainpack.branding('org_name')} 마케팅팀 PR 담당자입니다.",
             f"오늘({TODAY}) 자사 보도 모니터링 결과를 바탕으로 '오늘의 PR 동향 브리핑'을 작성하세요.",
             "",
             "작성 규칙:",
@@ -1160,7 +1160,7 @@ def main():
         'color: #1c1917; line-height: 1.7; background: #fff; }</style>'
         '</head><body>\n'
         '<div style="font-size:11px;font-weight:700;color:#78716c;'
-        f'letter-spacing:3px;margin-bottom:4px;">{_BRANDING["html_header_pr"]}</div>\n'
+        f'letter-spacing:3px;margin-bottom:4px;">{domainpack.branding("html_header_pr")}</div>\n'
         '<h1 style="font-size:22px;font-weight:800;margin:0 0 4px;">자사 보도 모니터링</h1>\n'
         f'<div style="font-size:13px;color:#78716c;margin-bottom:20px;">'
         f'{TODAY} · 최근 {HOURS}h</div>\n'
@@ -1171,7 +1171,7 @@ def main():
         f'{stock_section_html}'
         '<div style="margin-top:30px;padding-top:12px;border-top:1px solid #e7e5e4;'
         'font-size:11px;color:#a8a29e;">'
-        f'{_BRANDING["html_footer"]}'
+        f'{domainpack.branding("html_footer")}'
         f'<div style="margin-top:3px;">자동생성 {generated} KST</div>'
         f'{prev_run_html}'
         '</div>\n'
