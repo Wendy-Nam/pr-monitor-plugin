@@ -13,8 +13,6 @@
   "license": "MIT",
   "keywords": ["news", "monitoring", "newsletter", "pr", "automation", "korean"],
 
-  "hooks": "./hooks/hooks.json",
-
   "userConfig": {
     "azure_tenant_id": {
       "type": "string",
