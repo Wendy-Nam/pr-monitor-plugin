@@ -431,6 +431,23 @@ def load_self_blocklist(company_profile_path: str | None = None):
                         _SELF_BLOCKLIST.append(name[:5].lower())
         except Exception:
             pass
+    # pr-queries.yaml 의 self_aliases 도 읽어 영문 별칭 커버 (company-profile aliases 미정의 시 보완)
+    pr_q_candidates = [
+        Path("config/pr-queries.yaml"),
+        Path(__file__).resolve().parent.parent.parent.parent / "config" / "pr-queries.yaml",
+    ]
+    for pq in pr_q_candidates:
+        if pq.exists():
+            try:
+                import yaml as _yaml
+                pq_data = _yaml.safe_load(pq.read_text(encoding="utf-8")) or {}
+                for alias in pq_data.get("self_aliases", []):
+                    kw = str(alias).lower()
+                    if kw and kw not in _SELF_BLOCKLIST:
+                        _SELF_BLOCKLIST.append(kw)
+            except Exception:
+                pass
+            break
 
 def _is_self_mention(title: str, summary: str) -> bool:
     if not _SELF_BLOCKLIST:
