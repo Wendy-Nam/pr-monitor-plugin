@@ -56,13 +56,18 @@ Azure 인증: ✅ 연결됨 | ❌ 미설정 (→ "Azure 키" 로 설정)
 
 ## INSTALL — 도메인팩 설치 마법사
 
-`config/company-profile.yaml` 이 없거나 사용자가 설치를 요청하면 실행. 먼저 두 갈래를 묻는다:
+`config/company-profile.yaml` 이 없거나 사용자가 설치를 요청하면 실행. 먼저 세 갈래를 묻는다:
 
 **A) 기존 도메인팩으로 시작 (번들 제공 예시 도메인팩 = 도메인팩 1호)**
 → `init` 이 `config-templates/` 의 팩을 `config/` 로 시드한다(이미 대부분 됨). SECRETS + RECIPIENTS 만 안내.
 
-**B) 새 조직 설정 (인터뷰)**
-→ 아래를 한 번에 하나씩 묻고, 답으로 도메인팩 YAML 을 `${CLAUDE_PROJECT_DIR}/config/` 에 생성한다. 각 파일 스키마는 `config-templates/<name>.yaml` 을 본보기로 따른다.
+**B) 새 조직 — 자동 초안 (권장)**
+→ "회사명 + 산업"(+선택 경쟁사 힌트)만 받아 **`setup-bootstrap` 서브에이전트(Agent 툴)** 를 호출한다. 에이전트가 웹 리서치로 경쟁사·카테고리·키워드·소스를 조사해 도메인팩 YAML 초안을 `${CLAUDE_PROJECT_DIR}/config/` 에 작성하고, **요약을 제시해 사람 승인을 받는다**(완전 자동 아님). 인터뷰의 지루함 없이 초안 위에서 손보는 방식.
+  - 비용: 조직 생애 1회. 강한 모델 사용 정당(드물고 고가치).
+  - 한계: `prompt-examples.yaml`(인사이트 few-shot)은 자동 생성 안 됨 → 플레이스홀더 + 큐레이션 안내.
+
+**C) 새 조직 — 수동 인터뷰**
+→ 아래를 한 번에 하나씩 묻고, 답으로 도메인팩 YAML 을 `${CLAUDE_PROJECT_DIR}/config/` 에 생성한다. 각 파일 스키마는 `config-templates/<name>.yaml` 을 본보기로 따른다. (B 를 못 쓰거나 사용자가 직접 정의를 원할 때)
 
 인터뷰 항목 → 생성 파일:
 
