@@ -119,7 +119,13 @@ SELF_KW = list(_PR_QUERIES["self_aliases"])
 
 NEG_KW = list(_TONE_LEXICON["negative"])
 POS_KW = list(_TONE_LEXICON["positive"])
-STOCK_KW = list(_TONE_LEXICON["stock"])
+# 제품·사업 진전 (출시/공급/납품/수상/선보 등은 명확한 긍정)
+_POS_EXTRA = [
+    "출시", "출고", "론칭", "공급", "납품", "선보", "공개", "출전",
+    "수주", "양산", "출하", "런칭",
+]
+POS_KW = POS_KW + [kw for kw in _POS_EXTRA if kw not in POS_KW]
+STOCK_KW = list(_TONE_LEXICON["stock"]) + ["시가총액", "종목"]
 
 # Google News RSS — 자사 직접 쿼리 목록
 GNEWS_QUERIES = [
@@ -373,7 +379,11 @@ def fetch_gnews_pr(hours: int) -> list[dict]:
                 except Exception:
                     pub_norm = pub[:10] if len(pub) >= 10 else pub
 
-            # Google News 쿼리 자체가 자사명·별칭 — 결과 신뢰 (추가 필터 없음)
+            # 제목 또는 RSS snippet에 자사 키워드가 없는 기사는 skip.
+            # Google News가 관련 매체의 다른 기사를 cluster로 묶어 반환할 때 노이즈가 섞임.
+            combined = (title + " " + (entry.get("summary", "") or "")).lower()
+            if not any(kw.lower() in combined for kw in SELF_KW):
+                continue
 
             seen_urls.add(link)
             results.append({
@@ -478,6 +488,8 @@ def fetch_missing_bodies(no_body: list[dict]) -> None:
                 result = new_decoderv1(fetch_url, interval=0.5)
                 if result and result.get("status"):
                     fetch_url = result["decoded_url"]
+                    # HTML에 노출되는 링크도 실제 기사 URL로 교체 (Google redirect 제거)
+                    a["url"] = fetch_url
             downloaded = trafilatura.fetch_url(fetch_url)
             if downloaded:
                 extracted_json = trafilatura.extract(
@@ -667,6 +679,7 @@ def main():
             "author": author,
             "url": url_str,
             "tone": tone,
+            "_rule_tone": tone,  # 규칙 확정값 보존 — LLM 덮어쓰기 방지용
             "evidence": evidence,
             "summary": summary,
             "is_stock": stock,
@@ -706,7 +719,12 @@ def main():
     if _tones:
         for i, r in enumerate(all_rows):
             if i in _tones:
-                r["tone"] = _tones[i]
+                # 규칙 기반이 이미 긍정/부정을 확정한 경우 LLM 덮어쓰기 방지.
+                rule_tone = r.get("_rule_tone", "중립")
+                if rule_tone in ("긍정", "부정"):
+                    pass  # 규칙 확정 → LLM 무시
+                else:
+                    r["tone"] = _tones[i]
     for i, r in enumerate(direct_rows):
         r["llm_summary"] = _summaries.get(i) or (r.get("summary", "") or "")[:80]
 

@@ -848,7 +848,8 @@ def render_insight_card(insight: dict, num: int, reg: SourceRegistry) -> str:
 def attach_inline_refs(escaped_text: str, articles: list[dict],
                        reg: "SourceRegistry",
                        extra_candidates: list[dict] | None = None,
-                       warn_label: str = "") -> str:
+                       warn_label: str = "",
+                       dump_unmatched: bool = True) -> str:
     """서술 문장에 기사 출처번호 [n]을 내용 매칭으로 붙인다.
 
     문장 순서가 아니라 기사 제목 토큰(회사명·고유명사)이 등장하는 문장에 붙인다 —
@@ -934,7 +935,7 @@ def attach_inline_refs(escaped_text: str, articles: list[dict],
 
     # 문단 구분: 빈 줄(<br><br>)은 간격이 너무 뜸 — 호출부가 <p>로 감싸므로
     # 문단을 닫고 좁은 마진(6px)의 새 <p>로 잇는다
-    _PARA_SEP = '</p><p style="margin:6px 0 0;">'
+    _PARA_SEP = '</p><p style="margin:16px 0 0;">'
     out = ""
     for si, sent in enumerate(sentences):
         if si > 0:
@@ -953,6 +954,10 @@ def attach_inline_refs(escaped_text: str, articles: list[dict],
                 out += _ref(a)  # 본문에 이미 언급 → ref만 붙임
             else:
                 truly_new.append(a)
+
+        # dump_unmatched=False: 미매칭 기사를 "이 밖에 ~ 등" 산문으로 욱여넣지 않는다.
+        if not dump_unmatched:
+            truly_new = []
 
         if truly_new:
             # 건수 무관하게 "이 밖에 ~ 등도 주목됐다." 형식으로 통일
@@ -1032,7 +1037,8 @@ def render_category_summary_blocks(category_summary: list[dict],
 
         cat_label = f"카테고리[{cat.get('category_name', cat_id)}]"
         body = attach_inline_refs(text, arts, reg, extra_candidates=extra,
-                                  warn_label=cat_label) if text else ""
+                                  warn_label=cat_label,
+                                  dump_unmatched=False) if text else ""
 
         html += (
             f'<div class="summary-block" style="border-left-color:{color};">\n'
@@ -1252,12 +1258,11 @@ def build_html(data: dict, date_str: str,
     # CLI로 받은 foreign/domestic 은 run-post.sh 가 all_sources 전체 기준으로 계산한 값이라
     # reg 필터(블로그·중복 제거)를 거친 실제 렌더 건수와 1건 이상 어긋날 수 있음 → reg 기준으로 재계산
     def _is_domestic_entry(e: dict) -> bool:
-        url   = e.get("url", "")
-        name  = e.get("name", "")
-        title = e.get("title", "")
-        if ".kr/" in url or url.endswith(".kr"):
+        url  = e.get("url", "")
+        name = e.get("name", "")  # \ub9e4\uccb4\uba85\ub9cc \uae30\uc900 \u2014 title\uc740 \ud55c\uae00 \ubc88\uc5ed \uc81c\ubaa9\uc774 \uc11e\uc5ec \uc624\ud310\ud568
+        if ".kr/" in url or url.rstrip("/").endswith(".kr"):
             return True
-        if any("\uac00" <= c <= "\ud7a3" for c in name + title):
+        if any("\uac00" <= c <= "\ud7a3" for c in name):
             return True
         return False
 

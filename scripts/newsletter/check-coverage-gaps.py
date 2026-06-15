@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""briefing JSON에서 category_summary 서술에 누락된 headlines 기사를 탐지한다.
+"""briefing JSON에서 커버리지 누락 기사를 탐지한다.
+
+커버리지 규약(신): 그 카테고리 전 기사(tier1+tier2)는
+  - `headlines` 에 한국어로 포함되거나 (format.py 가 한 줄 나열로 렌더), 또는
+  - `category_summary` 산문에서 서술되어야 한다 (tier1 주요소식).
+둘 다 아니면 갭 — 해당 기사는 영문 원제목으로 폴백되거나 본문에서 사라진다.
 
 format.py 실행 전에 호출해 갭을 미리 잡는다.
-갭이 있으면 gaps JSON을 stdout에 출력하고 exit 1.
-갭이 없으면 exit 0.
+갭이 있으면 gaps JSON을 stdout에 출력하고 exit 1. 없으면 exit 0.
 
 사용:
   python3 scripts/newsletter/check-coverage-gaps.py 2026-06-12
@@ -15,13 +19,10 @@ import re
 import sys
 from pathlib import Path
 
-import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from prmonitor import paths, domainpack
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROCESSED = PROJECT_ROOT / "data" / "processed"
 
-PROCESSED = paths.PROCESSED_DIR
-
-CAT_IDS = set(domainpack.load_pack("categories")["order"])
+CAT_IDS = {"humanoid", "cobots", "amr", "manufacturing_platform", "other_industrial", "funding"}
 
 
 def _normalize(text: str) -> str:
@@ -65,7 +66,7 @@ def main() -> int:
         summary_map[cid] = c.get("summary", "") or c.get("text", "")
 
     # 검사 대상 = synthesis-context 의 카테고리 전체 (tier1 facts + tier2 헤드라인).
-    # briefing headlines 는 큐레이션(10~15건)이라 그것만 검사하면 미선별 기사가 빠진다.
+    # 카테고리 요약은 전부 산문이므로, 전 기사가 어떤 카테고리 요약에서든 서술돼야 한다.
     candidates: list[tuple[str, str]] = []  # (category_id, title)
     ctx_path = PROCESSED / f"synthesis-context-{date_str}.json"
     if ctx_path.exists():
@@ -77,10 +78,10 @@ def main() -> int:
         for t2 in ctx.get("tier2_headlines", []):
             candidates.append((t2.get("category", ""), t2.get("title", "")))
     else:
-        # 폴백: briefing 헤드라인만 검사 (구버전 동작)
         for h in briefing.get("headlines", []):
             candidates.append((h.get("group", "기타"), h.get("text", "")))
 
+    all_summaries = " ".join(summary_map.values())
     gaps: list[dict] = []
     seen: set[str] = set()
     for group, text in candidates:
@@ -90,13 +91,11 @@ def main() -> int:
         if key in seen:
             continue  # 같은 사건 복수 보도는 1건만 검사
         seen.add(key)
-        # 1차: 해당 카테고리 요약. 2차: 전체 요약 합산 (다른 블록에서 서술돼도 커버 —
-        # 예: humanoid 분류 기사가 투자·M&A 블록에서 다뤄진 경우. 독자는 전 블록을 읽는다)
         summary = summary_map.get(group, "")
-        all_summaries = " ".join(summary_map.values())
-        if not _covered(text, summary) and not _covered(text, all_summaries):
-            gaps.append({"category": group, "headline": text})
-            print(f"⚠️  갭[{group}]: {text[:70]}", file=sys.stderr)
+        if _covered(text, summary) or _covered(text, all_summaries):
+            continue
+        gaps.append({"category": group, "headline": text})
+        print(f"⚠️  갭[{group}]: {text[:70]}", file=sys.stderr)
 
     if gaps:
         print(json.dumps(gaps, ensure_ascii=False))

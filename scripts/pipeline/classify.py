@@ -357,6 +357,11 @@ def classify_articles(date_str: str):
         # 7. relevance_score
         relevance = calc_relevance(art, boost_hits, categories, competitors)
 
+        # 8. uncategorized 캐치올 — relevance 계산 후 '기타산업(other_industrial)'으로 흡수.
+        # uncategorized 로 남기면 카테고리 요약에 못 들어가 출처 번호만 받고 본문 미인용됨.
+        if categories == ["uncategorized"]:
+            categories = ["other_industrial"]
+
         result = {
             "url": url,
             "title": title,
