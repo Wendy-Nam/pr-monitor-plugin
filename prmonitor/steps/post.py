@@ -254,8 +254,10 @@ def run(args) -> int:
         subject = subject_tpl.replace("{date}", date_str)  # .sh:149
         subject = subject.replace("{count}", str(source_count))  # .sh:150
 
-        if no_email:  # .sh:151
-            log("Step 10: --no-email — 발송 skip")  # .sh:152
+        send_disabled = not pipeline_cfg("newsletter", "send_email", True)  # 상시 발송 차단 토글
+        if no_email or send_disabled:  # .sh:151
+            why = "--no-email" if no_email else "pipelines.yaml send_email: false"
+            log(f"Step 10: {why} — 발송 skip")  # .sh:152
         elif hold_reasons:  # .sh:153  ${#HOLD_REASONS[@]} > 0
             # 품질 게이트 발동 → 발송 보류 + REVIEW_NEEDED.md (.sh:154-171)
             review_file = paths.OUTPUT_DIR / "REVIEW_NEEDED.md"  # .sh:155
