@@ -1027,10 +1027,23 @@ def render_category_summary_blocks(category_summary: list[dict],
                    if dot_cls
                    else f'<div class="cat-dot" style="background:{color};"></div>')
 
-        # 이 카테고리 기사 = 헤드라인 그룹 전체(없으면 category sources). 자사 언급 제외.
-        arts = headlines_by_group.get(cat_id) or cat.get("sources", [])
+        # 이 카테고리 기사 = 합성기 헤드라인(한국어 text) + reg 백필(나머지 수집분).
+        # 수집된 그 카테고리 전 기사를 대상으로 삼아, 중요한 건 산문에 인라인 [n],
+        # 나머지는 dump_unmatched 가 "이 밖에 ~ 등 [n]" 으로 쓸어담는다. 자사 언급 제외.
+        selected = headlines_by_group.get(cat_id) or cat.get("sources", [])
+        seen_u = {(a.get("url", "") or a.get("source_url", "")) for a in selected}
+        arts = list(selected)
+        for e in reg.all_entries():
+            if e.get("category") != cat_id:
+                continue
+            u = e.get("url", "")
+            if u and u in seen_u:
+                continue
+            seen_u.add(u)
+            arts.append({"url": u, "title": e.get("title", ""), "text": e.get("title", "")})
         arts = [a for a in arts
-                if not _is_self_mention(a.get("title", ""), a.get("summary", ""))]
+                if not _is_self_mention(a.get("title", "") or a.get("text", ""),
+                                        a.get("summary", ""))]
 
         # 경쟁사 그룹 + 타 카테고리 헤드라인 — 카테고리 서술이 다른 그룹 기사를
         # 인용할 때 번호 누락 방지. 매칭될 때만 부착(미매칭은 버림).
@@ -1040,9 +1053,11 @@ def render_category_summary_blocks(category_summary: list[dict],
                                          h.get("summary", ""))]
 
         cat_label = f"카테고리[{cat.get('category_name', cat_id)}]"
+        # dump_unmatched=True: 산문에 안 엮인 수집 기사를 "이 밖에 ~ 등도 주목됐다 [n]"
+        # 으로 쓸어담아, 그 카테고리의 모든 출처번호가 본문에 1회 이상 등장하게 한다.
         body = attach_inline_refs(text, arts, reg, extra_candidates=extra,
                                   warn_label=cat_label,
-                                  dump_unmatched=False) if text else ""
+                                  dump_unmatched=True) if text else ""
 
         html += (
             f'<div class="summary-block" style="border-left-color:{color};">\n'
