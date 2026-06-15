@@ -231,19 +231,23 @@ def match_competitors(title: str, text: str, profile: dict) -> list[str]:
     return matched
 
 
-# 삼성전자 가중치 — 최대주주(지분 35%)라서 삼성의 로봇 분야 움직임
-# (타 로봇사 투자/협력 등)은 자사 직접 이해관계. 단 가전(로봇청소기 등)은 무관.
-_SAMSUNG_BOOST = _TUNING["stakeholder_boosts"][0]
+# 이해관계자 가중치 — 주요 주주·핵심 공급사 등의 자사 분야 움직임은 직접 이해관계.
+# classify-tuning stakeholder_boosts 에서 온다. 빈 목록이면(예시 도메인 기본값) 가중치 없음.
+_STAKEHOLDER_BOOSTS = _TUNING.get("stakeholder_boosts") or []
+_SAMSUNG_BOOST = _STAKEHOLDER_BOOSTS[0] if _STAKEHOLDER_BOOSTS else {}
 _SAMSUNG_MATCH_TERMS = [t.lower() for t in (_SAMSUNG_BOOST.get("match") or [])]
-_SAMSUNG_APPLIANCE_NOISE = list(_SAMSUNG_BOOST["noise_terms"])
-_SAMSUNG_BOOST_WEIGHT = _SAMSUNG_BOOST["weight"]
+_SAMSUNG_APPLIANCE_NOISE = list(_SAMSUNG_BOOST.get("noise_terms") or [])
+_SAMSUNG_BOOST_WEIGHT = _SAMSUNG_BOOST.get("weight", 0)
 
 
 def samsung_boost(title: str) -> int:
-    """제목에 이해관계자(최대주주) 언급 + 가전 노이즈 아님 → 가중치.
+    """제목에 이해관계자(최대주주) 언급 + 노이즈 아님 → 가중치.
 
     트리거 용어·노이즈·가중치 모두 classify-tuning stakeholder_boosts 에서 온다.
+    이해관계자 미설정(빈 목록)이면 항상 0.
     """
+    if not _SAMSUNG_MATCH_TERMS:
+        return 0
     t = title.lower()
     if not any(m in t for m in _SAMSUNG_MATCH_TERMS):
         return 0
