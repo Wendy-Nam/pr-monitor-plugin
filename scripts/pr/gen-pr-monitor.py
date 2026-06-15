@@ -380,11 +380,12 @@ def fetch_gnews_pr(hours: int) -> list[dict]:
                 except Exception:
                     pub_norm = pub[:10] if len(pub) >= 10 else pub
 
-            # 제목 또는 RSS snippet에 자사 키워드가 없는 기사는 skip.
-            # Google News가 관련 매체의 다른 기사를 cluster로 묶어 반환할 때 노이즈가 섞임.
+            # 제목·RSS 스니펫에 자사명이 보이는지 기록(스킵 X).
+            # 간접 언급은 제목·스니펫에 자사명이 없는 게 정상이라, 여기서 버리면
+            # 컨소시엄·압수수색 클러스터 등 진짜 간접이 증발한다. 자사 쿼리로 Google이
+            # 반환한 것이므로 일단 수집하고, 본문 fetch 후 본문 기준으로 노이즈를 거른다.
             combined = (title + " " + (entry.get("summary", "") or "")).lower()
-            if not any(kw.lower() in combined for kw in SELF_KW):
-                continue
+            alias_in_meta = any(kw.lower() in combined for kw in SELF_KW)
 
             seen_urls.add(link)
             results.append({
@@ -396,6 +397,7 @@ def fetch_gnews_pr(hours: int) -> list[dict]:
                 "full_text": "",
                 "rss_snippet": entry.get("summary", "") or "",
                 "_from_gnews": True,
+                "_alias_in_meta": alias_in_meta,
                 "is_domestic": q_cfg.get("domestic", True),
             })
 
@@ -583,15 +585,21 @@ def main():
         print(f"  블로그 제외: {dropped_blog}건 (티스토리 등 비매체)", file=sys.stderr)
 
     # ── 자사 무관 노이즈 제거 ──────────────────────────────────
-    # 제목·본문 어디에도 자사명 없는 기사 제거 (단, 본문 미추출은 보존: 확인 불가)
+    # 본문에 자사명 있으면 채택(간접 언급 복구). 본문 미추출이면 확인 불가 →
+    # 제목·스니펫에 자사명이 있었을 때만 보존(_alias_in_meta), 없으면 스팸으로 제거.
+    # (classified 풀 등 _alias_in_meta 키가 없는 항목은 이미 관련 확정 → 보존)
     def _mentions_self(a: dict) -> bool:
         blob = (a.get("title", "") + " " + (a.get("full_text") or "")).lower()
         return any(kw in blob for kw in SELF_KW)
+
+    def _keep(a: dict) -> bool:
+        if _mentions_self(a):
+            return True
+        if a.get("full_text"):
+            return False  # 본문 있는데 미언급 → 무관
+        return a.get("_alias_in_meta", True)  # 본문 미추출: 메타에 자사명 있을 때만 보존
     before_n = len(merged)
-    merged = [
-        a for a in merged
-        if _mentions_self(a) or not (a.get("full_text") or "")  # 본문 있는데 미언급 → 제거
-    ]
+    merged = [a for a in merged if _keep(a)]
     dropped_noise = before_n - len(merged)
     if dropped_noise:
         print(f"  노이즈 제거: 자사 무관 {dropped_noise}건 제외", file=sys.stderr)
