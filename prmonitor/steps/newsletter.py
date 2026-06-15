@@ -94,22 +94,35 @@ def _synth_model_from_spec() -> str:
     raw `claude -p` 는 frontmatter 를 자동 적용하지 않으므로 여기서 읽어 --model 로 넘긴다.
     """
     default = "claude-sonnet-4-6"
+    val = default
     try:
         spec = (paths.AGENTS_DIR / "insight-synthesizer.md").read_text(encoding="utf-8")
-    except OSError:
-        return default
-    in_fm = False
-    for line in spec.splitlines():
-        if line.strip() == "---":
-            if in_fm:
+        in_fm = False
+        for line in spec.splitlines():
+            if line.strip() == "---":
+                if in_fm:
+                    break
+                in_fm = True
+                continue
+            if in_fm and line.lower().startswith("model:"):
+                v = line.split(":", 1)[1].strip().strip('"\'')
+                if v:
+                    val = v
                 break
-            in_fm = True
-            continue
-        if in_fm and line.lower().startswith("model:"):
-            val = line.split(":", 1)[1].strip().strip('"\'')
-            if val:
-                return val
-    return default
+    except OSError:
+        pass
+    return val
+
+
+def _enforce_cheap_model(model: str) -> str:
+    """합성 모델을 Sonnet/Haiku 로 강제. Opus 는 비용 과다라 절대 쓰지 않는다.
+
+    frontmatter·PRM_SYNTH_MODEL 무엇이 와도 opus 계열이면 sonnet 으로 강등한다.
+    """
+    if "opus" in (model or "").lower():
+        warn(f"합성 모델 '{model}' → 비용 보호로 claude-sonnet-4-6 강등")
+        return "claude-sonnet-4-6"
+    return model or "claude-sonnet-4-6"
 
 
 def _synth_prompt(date: str) -> str:
@@ -240,7 +253,8 @@ def run(args) -> int:
     # 합성 모델: insight-synthesizer.md frontmatter 의 선언값을 따른다(없으면 sonnet).
     # raw `claude -p` 는 agent frontmatter 를 안 읽으므로 여기서 명시하지 않으면
     # CLI 기본값(Opus)으로 떨어져 ~5배 비싸진다. PRM_SYNTH_MODEL 로 1회 override 가능.
-    synth_model = os.environ.get("PRM_SYNTH_MODEL") or _synth_model_from_spec()
+    synth_model = _enforce_cheap_model(
+        os.environ.get("PRM_SYNTH_MODEL") or _synth_model_from_spec())
     claude_argv = [
         claude_bin, "-p", prompt,
         "--model", synth_model,
@@ -276,7 +290,6 @@ def run(args) -> int:
     # 실행 로그는 이 모듈이 전담 — post 자체 기록 비활성 (.sh L131-132).
     # The env flag is the cross-process contract post.run honors when it shells
     # exec-log.py; passed through args too for the in-process call.
-    import os
     os.environ["PR_MONITOR_EXEC_LOGGED"] = "1"
 
     from . import post  # lazy: sibling module is a separate port
