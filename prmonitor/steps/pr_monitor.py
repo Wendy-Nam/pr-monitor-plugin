@@ -114,12 +114,14 @@ def run(args) -> int:
     # ── 인자 파싱 — DATE from args.date; no --no-email flag here ──
     date = args.date
 
-    # 수집 윈도우: config 기반, 월요일은 monday_hours (주말 커버).
-    # 2번째 인자 override 는 pr-monitor 서브파서에 없음 → 항상 정책값.
-    hours = resolve_hours(PIPELINE)
+    # 수집 윈도우: 인자로 명시되면 그것을, 없으면 config 정책(월요일 monday_hours).
+    hours = getattr(args, "hours", None)
     log_hours_note = ""
-    if datetime.now().weekday() == 0:  # Monday (date +%u == 1)
-        log_hours_note = f"월요일 감지 — {hours}h (주말 커버)"
+    if hours is None:
+        hours = resolve_hours(PIPELINE)
+        if datetime.now().weekday() == 0:  # Monday (date +%u == 1)
+            log_hours_note = f"월요일 감지 — {hours}h (주말 커버)"
+    hours = int(hours)
 
     # data/output/pr 보장 — three-root: PR_OUTPUT_DIR.
     paths.PR_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

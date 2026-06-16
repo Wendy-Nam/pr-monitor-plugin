@@ -109,3 +109,20 @@ class TestCommon:
         from prmonitor import common as c
         assert c.is_blog("https://x.tistory.com/1") is True
         assert c.is_blog("https://therobotreport.com/a") is False
+
+
+class TestCliArgs:
+    """CLI 인자 — pr/pr-monitor 가 선택적 [hours] override 를 받는다."""
+
+    def test_pr_accepts_optional_hours(self):
+        from prmonitor.__main__ import build_parser
+        p = build_parser()
+        a = p.parse_args(["pr", "2026-06-15", "72"])
+        assert a.date == "2026-06-15" and a.hours == 72
+        # 생략 시 None → run() 이 정책값(월요일 72h 등)으로 폴백
+        assert p.parse_args(["pr", "2026-06-15"]).hours is None
+        assert p.parse_args(["pr"]).hours is None
+
+    def test_pr_monitor_accepts_optional_hours(self):
+        from prmonitor.__main__ import build_parser
+        assert build_parser().parse_args(["pr-monitor", "2026-06-15", "48"]).hours == 48
