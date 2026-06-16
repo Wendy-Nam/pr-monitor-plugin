@@ -87,7 +87,7 @@ flowchart LR
 ## 설치
 
 ```
-/plugin marketplace add Wendy-Nam/pr-monitor
+/plugin marketplace add Wendy-Nam/pr-monitor-plugin
 /plugin install pr-monitor@news-monitor
 ```
 
