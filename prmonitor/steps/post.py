@@ -254,6 +254,11 @@ def run(args) -> int:
         subject = subject_tpl.replace("{date}", date_str)  #
         subject = subject.replace("{count}", str(source_count))  #
 
+        # 게이트 통과(보류 사유 없음) → 이전 실행의 stale REVIEW_NEEDED.md 제거.
+        # (안 지우면 깨끗한 재실행도 옛 보류서 때문에 헛경고가 뜬다.)
+        if not hold_reasons:
+            (paths.OUTPUT_DIR / "REVIEW_NEEDED.md").unlink(missing_ok=True)
+
         send_disabled = not pipeline_cfg("newsletter", "send_email", True)  # 상시 발송 차단 토글
         if no_email or send_disabled:  #
             why = "--no-email" if no_email else "pipelines.yaml send_email: false"

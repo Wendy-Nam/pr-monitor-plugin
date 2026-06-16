@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.3 — 합성 병렬 분리 + 동향 품질 (속도 ~4배·코드스위칭 0)
+
+뉴스레터 합성을 '교차(인사이트) 1회 + 카테고리별 N회 병렬'로 분리. 속도 ~4배(약 6분→1.5분), 카테고리 동향의 흐름·번역·coverage 개선.
+
+### 추가
+- **병렬 분리 합성** (newsletter.py): 인사이트·tldr·glossary·landscape 는 교차 호출 1개, 카테고리 동향은 카테고리별 호출 N개를 동시 실행(최대 6) 후 머지. 각 호출이 자기 슬라이스만 보므로 빠르고 집중도↑. 기본 활성(`PRM_SYNTH_PARALLEL=0` 로 단일 폴백).
+- **category-digest.md** 신설: 단일 카테고리 동향 전용 슬림 스펙(전 기사 커버·흐름·번역·micro-tail).
+
+### 수정
+- **stale-briefing 가드** (newsletter.py): 합성 직전 briefing 삭제 → 합성 실패 시 옛 briefing 이 조용히 렌더되던 버그 차단.
+- **stale REVIEW_NEEDED.md** (post.py): 품질 게이트 통과 시 이전 보류서 제거 — 깨끗한 재실행이 헛경고 내던 문제 해소.
+- **ref 폭탄 방지** (format.py): 문장당 inline 출처번호 상한(4) — 토큰 1개로 무관 기사가 한 문장에 쏠려 오귀속되던 문제 차단.
+- **landscape 번들 경량화** (preload-synthesis-context.py): 합성 입력에서 archive(중복 누적 이력) 제외 → 노이즈 약 67%↓.
+- **insight-synthesizer.md** 다이어트(462→~290줄) + 단일 스레드·코드스위칭 금지·동향 흐름 규칙.
+- 합성 effort 기본값 medium (low 가 오히려 thrashing 해 더 느렸음).
+
 ## 0.5.2 — 카테고리 동향 렌더 수정 (raw ref·경쟁사 그룹핑)
 
 뉴스레터 카테고리별 동향이 레퍼런스와 어긋나던 렌더 버그 수정 (format.py, 도메인 중립).

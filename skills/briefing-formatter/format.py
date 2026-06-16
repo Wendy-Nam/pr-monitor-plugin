@@ -956,7 +956,7 @@ def attach_inline_refs(escaped_text: str, articles: list[dict],
             if score > best_score:
                 best_si, best_score = si, score
         if best_si >= 0 and best_score >= min_score:
-            refs_per_sentence.setdefault(best_si, []).append(a)
+            refs_per_sentence.setdefault(best_si, []).append((a, best_score))
             if url:
                 seen_urls.add(url)
         elif keep_unmatched:
@@ -971,6 +971,16 @@ def attach_inline_refs(escaped_text: str, articles: list[dict],
     for a in (extra_candidates or []):
         _assign(a, keep_unmatched=False, min_score=2)
 
+    # 문장당 inline ref 상한 — 토큰 1개로 우르르 붙는 폭탄 방지(고유명사 많은 문장이
+    # 자석이 돼 무관 기사가 쏠리는 오귀속 차단). 점수 높은 순 N개만 인라인, 나머지(약한
+    # 매칭)는 미매칭으로 돌려 tail "이 밖에 ~" 로 보낸다. tail refs_str 은 이 상한과 무관.
+    _MAX_INLINE = 4
+    for si in list(refs_per_sentence):
+        items = sorted(refs_per_sentence[si], key=lambda x: -x[1])
+        refs_per_sentence[si] = items[:_MAX_INLINE]
+        for a, _s in items[_MAX_INLINE:]:
+            unmatched.append(a)
+
     # 문단 구분: 빈 줄(<br><br>)은 간격이 너무 뜸 — 호출부가 <p>로 감싸므로
     # 문단을 닫고 좁은 마진(6px)의 새 <p>로 잇는다
     _PARA_SEP = '</p><p style="margin:16px 0 0;">'
@@ -979,7 +989,7 @@ def attach_inline_refs(escaped_text: str, articles: list[dict],
         if si > 0:
             out += _PARA_SEP if para_of[si] != para_of[si - 1] else " "
         out += sent
-        for a in refs_per_sentence.get(si, []):
+        for a, _s in refs_per_sentence.get(si, []):
             out += _ref(a)
     out = out.strip()
     if unmatched:
@@ -1093,12 +1103,10 @@ def render_category_summary_blocks(category_summary: list[dict],
                 if not _is_self_mention(a.get("title", "") or a.get("text", ""),
                                         a.get("summary", ""))]
 
-        # 경쟁사 그룹 + 타 카테고리 헤드라인 — 카테고리 서술이 다른 그룹 기사를
-        # 인용할 때 번호 누락 방지. 매칭될 때만 부착(미매칭은 버림).
-        extra = [h for g, items in headlines_by_group.items()
-                 if g != cat_id for h in items
-                 if not _is_self_mention(h.get("title", "") or h.get("text", ""),
-                                         h.get("summary", ""))]
+        # 타 카테고리 헤드라인을 후보로 넣지 않는다. 병렬 합성에서 각 카테고리 호출은
+        # 자기 기사만 서술하므로, 다른 카테고리 기사를 후보로 두면 토큰 우연 매칭으로
+        # 무관 기사 ref 가 오귀속된다(예: humanoid 기사가 amr 문장에). 자기 카테고리만.
+        extra: list = []
 
         cat_label = f"카테고리[{cat.get('category_name', cat_id)}]"
         # dump_unmatched=True: 산문에 안 엮인 수집 기사를 "이 밖에 ~ 등도 주목됐다 [n]"
@@ -1426,18 +1434,17 @@ def build_html(data: dict, date_str: str,
 
         for h in headlines:
             g = h.get("group", "기타")
-            # 경쟁사 그룹 검증 — 헤드라인 텍스트에 그 회사명이 없으면 오배정
-            # (리드 비교 언급 등) → 기사 카테고리로 재배정
-            if g not in CAT_ORDER and g != "기타":
+            # 경쟁사 승격(우선) — 제목 주체가 등록 경쟁사면 카테고리/기타 무관하게 경쟁사
+            # 그룹으로. 병렬 합성은 헤드라인을 카테고리 그룹으로 내보내므로, 이 승격이
+            # 없으면 '경쟁사 동향' 섹션이 통째로 빈다.
+            comp = competitor_for_text(h.get("text", ""))
+            if comp:
+                g = comp
+            elif g not in CAT_ORDER and g != "기타":
+                # 경쟁사로 라벨됐지만 제목에 그 회사명 없음 → 오배정, 카테고리로 강등
                 if not competitor_in_text(g, h.get("text", "")):
                     u = h.get("url", "") or h.get("source_url", "")
                     g = url_to_cat.get(u) if url_to_cat.get(u) in CAT_ORDER else "기타"
-            elif g == "기타":
-                # 역방향 승격 — '기타'로 라벨됐지만 제목이 등록 경쟁사를 가리키면
-                # 그 경쟁사 그룹으로 (예: 합성기가 Yaskawa 기사를 기타로 둔 경우).
-                comp = competitor_for_text(h.get("text", ""))
-                if comp:
-                    g = comp
             groups.setdefault(g, []).append(h)
             # 경쟁사인지 카테고리인지 구분 (CAT_ORDER에 없으면 경쟁사)
             if g not in CAT_ORDER and g != "기타" and g not in competitor_names:
