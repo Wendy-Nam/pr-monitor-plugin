@@ -8,7 +8,8 @@
 | **PR 모니터링** | 평일 매일 | 자사 언급 기사 + 톤 라벨 + 월간 엑셀 |
 
 수집·분류·렌더링은 **결정론 코드**, LLM 은 **기사 보강·인사이트 합성·PR 톤 판정** 세 곳에만 쓴다.
-1회 뉴스레터 실행 비용은 대략 **$1~1.5** (대부분 합성 Sonnet, 보강은 Haiku — 기사 수·모델에 따라 변동).
+비용은 대부분 합성(Sonnet)에서 나며 수집 기사 수·모델·재시도에 따라 달라진다 —
+실제 값은 실행 로그(`logs/executions/`)의 `total_cost_usd` 로 확인한다.
 
 > [!IMPORTANT]
 > **실행 환경**: 로컬 **Claude Code Desktop 앱** (Windows · macOS). 뉴스 사이트를 직접 수집하므로
@@ -95,6 +96,43 @@ LLM 이 쓴 브리핑을 그대로 발송하지 않는다. 발송 전, **규칙 
 ```
 python3 "${CLAUDE_PLUGIN_ROOT}/prmonitor_launch.py" <pre|post|pr|newsletter|init|paths>
 ```
+
+## 커스터마이즈 — 어디를 고치나
+
+모든 조직별 설정은 워크스페이스의 `config/`(도메인팩)와 `data/self-context/`(자사 맥락)에 있다.
+**코드(`prmonitor/`·`scripts/`)는 건드리지 않는다.** 바꾸려는 게 무엇이냐에 따라:
+
+| 바꾸려는 것 | 파일 |
+|---|---|
+| 회사·경쟁사·카테고리 정의 | `config/company-profile.yaml` |
+| 카테고리 라벨·색 | `config/categories.yaml` |
+| 부스트/제외 키워드 | `config/keywords.yaml` |
+| 수집 소스 (RSS·뉴스 검색쿼리) | `config/sources.yaml` |
+| **수집 시간창**·발송 주기·메일 제목 | `config/pipelines.yaml` |
+| 분류 튜닝 (이해관계자 가중·저신호·범용어) | `config/classify-tuning.yaml` |
+| 출력 언어·문장 길이·금지어 | `config/style.yaml` |
+| 자사 PR 검색어·톤 판정 렉시콘·매체명 | `config/pr-queries.yaml` · `tone-lexicon.yaml` · `media.yaml` |
+| 수신자·이메일 인증 | `config/delivery.yaml` |
+| 인사이트 few-shot 예시 (품질) | `config/prompt-examples.yaml` |
+
+**수집 범위 넓히기**: `pipelines.yaml` 의 `hours`(평일)·`monday_hours`(월요일, 주말 갭 보정)를 조정하거나,
+실행 시 인자로 1회 지정 — `/newsletter 2026-06-15 168`(주간), `/pr-clipping 2026-06-15 72`.
+
+### 자사 맥락 (인사이트 함의의 근거)
+
+인사이트의 "자사 함의" 품질은 `data/self-context/` 가 좌우한다:
+
+| 파일 | 내용 | 갱신 방식 |
+|---|---|---|
+| `company-narrative.md` | 자사 포지셔닝·관계·전략 | **수동** (직접 편집) |
+| `competitor-landscape.yaml` | 경쟁사 기준선 | **수동** |
+| `key-events.yaml` | 주요 이벤트 | 수동 또는 아래 에이전트 |
+| `timeline/{분기}.yaml` | 자사 언급 분기 타임라인 | **자동** — PR 실행마다 결정론 축적 |
+| `patterns-observed.md` | 관찰된 외부 프레임 | 에이전트 (아래) |
+
+- **일일 축적은 자동**이다. PR 모니터링이 돌 때마다 자사 언급 기사가 분기 타임라인에 쌓인다 (LLM 없음).
+- **압축·승격은 수동 권장**이다. 쌓인 타임라인을 `patterns-observed.md` 갱신 + `key-events.yaml` 승격으로
+  정리하는 건 `self-context-updater` 에이전트가 한다. 편집 판단이 필요해 **루틴에 넣지 않았다 — 월 1회쯤 직접 실행**한다.
 
 ## 자동 실행 (Routines)
 
