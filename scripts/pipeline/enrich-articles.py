@@ -28,17 +28,41 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from prmonitor import paths
+from prmonitor import paths, domainpack
 
 ENRICH_MODEL = os.environ.get("PRM_ENRICH_MODEL", "claude-haiku-4-5")
 
-RUBRIC = """중요도(importance) 기준 — 산업 로봇 뉴스레터 임원 독자 관점:
-5 = 대형 자금조달·M&A·공급계약·상용 배치·규제·최대주주(예: 삼성) 행보
+
+def _industry() -> str:
+    """도메인팩에서 산업 분야 — 엔진은 산업을 모른다(콘토소 EV·로봇 등 무관)."""
+    try:
+        prof = domainpack.load_pack("company-profile")
+        ind = (prof.get("company") or {}).get("industry", "")
+        if ind:
+            return ind
+    except Exception:
+        pass
+    return "해당"
+
+
+def _build_rubric() -> str:
+    """중요도 루브릭 — 도메인 중립. 산업명만 도메인팩에서 주입하고, 등급 정의는
+    어느 산업에나 통하는 일반어(자금조달·M&A·규제·노벨티)로 쓴다. 도메인팩이
+    importance_hint(선택)를 주면 그 산업 고유의 예시를 덧붙인다."""
+    industry = _industry()
+    lang = domainpack.get("style", "language", "ko")
+    summ_lang = {"ko": "한국어", "en": "English", "ja": "日本語"}.get(lang, lang)
+    rubric = f"""중요도(importance) 기준 — {industry} 산업 뉴스레터 임원 독자 관점:
+5 = 대형 자금조달·M&A·공급계약·상용 배치·규제·핵심 이해관계자(최대주주·전략 투자자·대형 고객) 행보
 4 = 의미있는 제품 출시·전략 파트너십·실적·신규 시장 진입
 3 = 일반 업계 동향·연구 발표·전시회 소식
 2 = 마이너 업데이트·지역 단신
-1 = 노벨티/묘기/색다른 화제 (로봇 등반·춤·탁구·콘서트·불쾌한 골짜기 등) — 경쟁사명이 박혀 있어도 1
-ko_summary = 그 기사가 "무슨 일인지" 한국어 한 문장(40~80자). 제목 번역이 아니라 핵심."""
+1 = 노벨티/색다른 화제·이색 기록·묘기성 시연 — 경쟁사명이 박혀 있어도 1
+ko_summary = 그 기사가 "무슨 일인지" {summ_lang} 한 문장(40~80자). 제목 번역이 아니라 핵심."""
+    hint = domainpack.get("classify-tuning", "importance_hint", "")
+    if hint:
+        rubric += f"\n\n[이 산업 참고] {hint.strip()}"
+    return rubric
 
 
 def _aid(a: dict) -> str:
@@ -64,12 +88,12 @@ def _run_haiku(in_path: Path, out_path: Path) -> bool:
     if not claude:
         print("enrich: claude CLI 없음 — 보강 skip (키워드 점수 폴백)")
         return False
-    prompt = f"""너는 로봇 산업 뉴스 분류기다. {in_path} 를 읽어라.
-각 기사에 대해 중요도(1~5)와 한국어 1줄요약을 매긴다.
+    prompt = f"""너는 {_industry()} 산업 뉴스 분류기다. {in_path} 를 읽어라.
+각 기사에 대해 중요도(1~5)와 1줄요약을 매긴다.
 
-{RUBRIC}
+{_build_rubric()}
 
-{out_path} 에 JSON 배열로 저장한다 — 각 원소는 {{"id": "<입력 id 그대로>", "importance": <1-5 정수>, "ko_summary": "<한국어 한 문장>"}}.
+{out_path} 에 JSON 배열로 저장한다 — 각 원소는 {{"id": "<입력 id 그대로>", "importance": <1-5 정수>, "ko_summary": "<요약 한 문장>"}}.
 입력의 모든 기사를 빠짐없이 포함한다. 설명·잡담 없이 파일만 쓴다."""
     log = paths.LOGS_DIR / f"enrich-{in_path.stem}.log"
     env = dict(os.environ)

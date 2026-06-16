@@ -183,3 +183,48 @@ class TestExtractFact:
         fact = extract_fact(article)
         assert fact["tier"] == 2
         assert fact["summary"] == ""  # tier2 → summary 생략 (토큰 절감)
+
+    def test_ko_summary_overrides(self):
+        """enrich 한국어 요약이 있으면 tier1·tier2 모두 그것을 summary 로 쓴다."""
+        from scripts.pipeline.aggregate import extract_fact
+
+        base = {
+            "title": "T", "url": "https://example.com/k", "source_name": "M",
+            "published_date": "2026-06-10", "language": "ko", "word_count": 100,
+            "competitors_mentioned": [], "relevance_score": 5,
+            "first_paragraph": "English lead that should be overridden.",
+            "ko_summary": "한국어 핵심 요약.",
+        }
+        assert extract_fact({**base, "_tier": 1})["summary"] == "한국어 핵심 요약."
+        # tier2 도 ko_summary 가 있으면 헤드라인 내용 제공
+        assert extract_fact({**base, "_tier": 2})["summary"] == "한국어 핵심 요약."
+
+
+class TestImportanceTiering:
+    """Haiku importance 보강 기사의 tier 배정 — 키워드 점수/경쟁사 휴리스틱 대체."""
+
+    def test_importance_drives_tier1(self):
+        from scripts.pipeline.aggregate import assign_tiers
+        articles = [
+            {"importance": 5, "relevance_score": 1, "competitors_mentioned": [], "title": "fund"},
+            {"importance": 3, "relevance_score": 5, "competitors_mentioned": [], "title": "mid"},
+        ]
+        result = assign_tiers(articles)
+        assert result[0]["_tier"] == 1   # importance 5 → tier1 (키워드 점수 무관)
+        assert result[1]["_tier"] == 2   # importance 3 < 4 → tier2 (키워드 5여도)
+
+    def test_enriched_competitor_novelty_not_promoted(self):
+        """핵심 회귀: 보강 기사는 경쟁사명만으로 tier1 자동승격되지 않는다.
+        (묘기 기사가 경쟁사명 박혀 tier1 먹던 버그)."""
+        from scripts.pipeline.aggregate import assign_tiers
+        articles = [
+            {"importance": 1, "relevance_score": 5,
+             "competitors_mentioned": ["Unitree"], "title": "robot climbs Everest"},
+        ]
+        result = assign_tiers(articles)
+        assert result[0]["_tier"] == 2   # importance 1 → 경쟁사 있어도 tier2
+
+    def test_tier_score_prefers_importance(self):
+        from scripts.pipeline.aggregate import tier_score
+        assert tier_score({"importance": 5, "relevance_score": 1}) == 5.0
+        assert tier_score({"relevance_score": 3}) == 3.0  # 보강 없으면 폴백
