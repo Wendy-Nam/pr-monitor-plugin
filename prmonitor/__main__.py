@@ -38,9 +38,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_prmon = sub.add_parser("pr-monitor", help="PR 모니터링 (톤판정→누적→발송)")
     p_prmon.add_argument("date", nargs="?", default=None)
+    p_prmon.add_argument("hours", type=int, nargs="?", default=None)
 
     p_pr = sub.add_parser("pr", help="PR 일일 (pre + pr-monitor)")
     p_pr.add_argument("date", nargs="?", default=None)
+    p_pr.add_argument("hours", type=int, nargs="?", default=None)
 
     p_nl = sub.add_parser("newsletter", help="뉴스레터 (pre → 합성 → post)")
     p_nl.add_argument("date", nargs="?", default=None)

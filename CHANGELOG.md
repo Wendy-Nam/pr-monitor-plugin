@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1 — PR 클리핑 수집창 override
+
+### 추가
+- **`/pr-clipping [date] [hours]`**: 선택적 시간창 인자. 매일 돌리지 않는 경우
+  수집창을 직접 넓힐 수 있다(예: 주 1회 `168`). 생략 시 기존 정책 그대로 —
+  평일 24h, **월요일 72h(주말 자동 포함)**. `pr`·`pr-monitor` 서브커맨드 둘 다
+  positional `hours` 수용(newsletter `[date] [hours]` 와 동일 UX).
+- CLI 인자 테스트 2개(`TestCliArgs`). 총 113개.
+
 ## 0.3.0 — 코드 리뷰 안전 정리
 
 심층 코드 리뷰의 저위험·고가치 지적을 반영. 동작 변화 없음(전부 구조·정리),

@@ -29,7 +29,12 @@ def run(args) -> int:
     from . import pre, pr_monitor
 
     date = args.date
-    hours = resolve_hours("pr_monitoring")  # L18
+    # 시간창: 인자로 명시되면 그것을, 없으면 정책(평일 hours·월요일 monday_hours).
+    # 매일 안 돌리는 사용자가 수집창을 직접 넓힐 수 있게 override 를 받는다.
+    hours = getattr(args, "hours", None)
+    if hours is None:
+        hours = resolve_hours("pr_monitoring")
+    hours = int(hours)
 
     log(f"=== PR 모니터링 일괄 실행 ({date}, {hours}h) ===")  # L20
 
@@ -38,9 +43,9 @@ def run(args) -> int:
     if rc != 0:  # set -euo pipefail → 첫 실패에서 중단
         return rc
 
-    # L23: run-pr-monitor.sh "$DATE" — date 만 전달. pr_monitor 가 hours 를
-    # 동일 정책(resolve_hours pr_monitoring)으로 재해석한다.
-    return pr_monitor.run(Namespace(date=date))
+    # 같은 hours 를 pr_monitor 에도 넘긴다(override 일관성). 인자 없으면 pr_monitor 가
+    # 동일 정책으로 재해석하므로 결과는 같다.
+    return pr_monitor.run(Namespace(date=date, hours=hours))
 
 
 if __name__ == "__main__":
