@@ -8,6 +8,7 @@
 classified → 카테고리별 그룹핑 + 중복 제거 + 구조화.
 insight-synthesizer 가 이 파일을 입력으로 사용.
 """
+from __future__ import annotations  # ponytail: PEP 604 unions on py3.9 venv
 
 import hashlib
 import sys
@@ -55,8 +56,18 @@ def recency_bonus(article: dict, ref_date: str) -> float:
     return 0.0
 
 
+def tier_score(article: dict) -> float:
+    """tier 선정용 점수. enrich-articles.py 가 매긴 Haiku importance(편집 중요도)를
+    우선 사용하고, 없으면 키워드 relevance_score 로 폴백한다. importance 는 묘기 vs
+    실속을 구분하므로(키워드 점수는 못 함) tier1 슬롯이 실속 기사로 채워진다."""
+    imp = article.get("importance")
+    if isinstance(imp, (int, float)):
+        return float(imp)
+    return float(article.get("relevance_score", 0))
+
+
 def sort_key(article: dict, ref_date: str) -> float:
-    return article.get("relevance_score", 0) + recency_bonus(article, ref_date)
+    return tier_score(article) + recency_bonus(article, ref_date)
 
 
 def dedup_articles(articles: list[dict], threshold: float = 0.7) -> list[dict]:
@@ -99,13 +110,19 @@ def assign_tiers(arts: list[dict]) -> list[dict]:
     tier1_count = 0
     result = []
     for art in arts:
-        score = art.get("relevance_score", 0)
         has_competitor = bool(art.get("competitors_mentioned"))
+        enriched = "importance" in art
 
         # 저신호 전시회/보도자료는 tier1 제외
         if is_low_signal_tier_candidate(art):
             is_tier1 = False
+        elif enriched:
+            # Haiku importance 가 있으면 그것만으로 판단 — 경쟁사명 자동승격(묘기 기사
+            # tier1 유입의 원인)을 적용하지 않는다. importance>=4 = 주요소식.
+            is_tier1 = art["importance"] >= TIER1_SCORE_THRESHOLD and tier1_count < TIER1_CAT_MAX
         else:
+            # 폴백: 보강 실패 시 기존 키워드 점수 + 경쟁사 휴리스틱
+            score = art.get("relevance_score", 0)
             is_tier1 = (score >= TIER1_SCORE_THRESHOLD or has_competitor) and tier1_count < TIER1_CAT_MAX
 
         if is_tier1:
@@ -156,8 +173,14 @@ def extract_fact(article: dict) -> dict:
         first_para = article.get("full_text", "")[:300]
 
     tier = article.get("_tier", 2)
-    # tier2 = 헤드라인 나열만 → summary 불필요 → 토큰 절감
-    summary = first_para.strip()[:200] if tier == 1 else ""
+    # 한국어 1줄요약(enrich)이 있으면 우선 — 추출 실패/영문 summary 문제 해결.
+    # tier1: 한국어요약 우선, 없으면 첫 문단. tier2: 한국어요약만(헤드라인 내용 제공),
+    # 없으면 빈값(토큰 절감 — 기존 동작).
+    ko = (article.get("ko_summary") or "").strip()
+    if tier == 1:
+        summary = ko or first_para.strip()[:200]
+    else:
+        summary = ko
 
     return {
         "id": article_id(article),

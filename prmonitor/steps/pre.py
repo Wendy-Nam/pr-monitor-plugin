@@ -212,6 +212,15 @@ def run(args) -> int:
     # (Step 4·5 결번 — LLM 팩트추출·인용검증 → 결정론적 집계로 통합)
     all_facts = paths.PROCESSED_DIR / f"newsletter-facts-{date}.json"
 
+    # ── Step 5b: 기사 보강 (Haiku importance + 한국어 1줄요약) ────────────────
+    # aggregate 직전, facts 가 아직 없을 때만. 비치명적 — 실패해도 aggregate 가
+    # 키워드 점수로 폴백한다. 키워드론 묘기 vs 실속 구분이 안 돼 tier 가 뒤집히는
+    # 문제를 Haiku 편집 중요도로 잡는다.
+    if not all_facts.is_file():
+        log("Step 5b: 기사 보강 시작 (Haiku importance + 한국어 요약)...")
+        _run_step([py, str(sdir / "enrich-articles.py"), date],
+                  "Step 5b: enrich-articles.py 경고")  # 실패해도 계속
+
     if all_facts.is_file():  # run-pre.sh:137
         log("Step 6: 집계 skip (기존 파일)")
     else:
