@@ -976,29 +976,10 @@ def attach_inline_refs(escaped_text: str, articles: list[dict],
             truly_new = []
 
         if truly_new:
-            # 건수 무관하게 "이 밖에 ~ 등도 주목됐다." 형식으로 통일
-            # ponytail: cap at 3 display items; filter short/keyword-only titles
-            snippets = []
-            for a in truly_new:
-                if len(snippets) >= 3:
-                    break
-                hl = a.get("text", "").strip()
-                short = _re.split(r"[,，。\.\(（—–\-]", hl)[0].strip()
-                words = short.split()
-                # 1단어 이하 또는 8자 미만은 너무 짧아 의미 없음 (예: "홍콩", "삼성")
-                if len(words) < 2 or len(short) < 8:
-                    continue
-                # 영문 전용 제목은 앞 4단어만 (예: "Watch This Humanoid Robot Move...")
-                if not any('가' <= ch <= '힣' for ch in short):
-                    short = " ".join(words[:4]) + ("…" if len(words) > 4 else "")
-                snippets.append(esc(short))
+            # 제목 나열 대신 건수만 — 제목 없이 나열하면 의미없는 키워드 묶음이 됨
             refs_str = "".join(_ref(a) for a in truly_new)
-            if snippets:
-                joined = ", ".join(snippets)
-                out += f" 이 밖에 {joined} 등도 주목됐다.{refs_str}"
-            else:
-                # 표시할 snippet 없어도 ref 번호는 붙여야 커버리지 유지
-                out += refs_str
+            n = len(truly_new)
+            out += f" 이 밖에 {n}건이 더 수집됐다.{refs_str}"
 
         if warn_label and truly_new:
             for a in truly_new:
