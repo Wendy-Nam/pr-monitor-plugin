@@ -1434,18 +1434,17 @@ def build_html(data: dict, date_str: str,
 
         for h in headlines:
             g = h.get("group", "기타")
-            # 경쟁사 그룹 검증 — 헤드라인 텍스트에 그 회사명이 없으면 오배정
-            # (리드 비교 언급 등) → 기사 카테고리로 재배정
-            if g not in CAT_ORDER and g != "기타":
+            # 경쟁사 승격(우선) — 제목 주체가 등록 경쟁사면 카테고리/기타 무관하게 경쟁사
+            # 그룹으로. 병렬 합성은 헤드라인을 카테고리 그룹으로 내보내므로, 이 승격이
+            # 없으면 '경쟁사 동향' 섹션이 통째로 빈다.
+            comp = competitor_for_text(h.get("text", ""))
+            if comp:
+                g = comp
+            elif g not in CAT_ORDER and g != "기타":
+                # 경쟁사로 라벨됐지만 제목에 그 회사명 없음 → 오배정, 카테고리로 강등
                 if not competitor_in_text(g, h.get("text", "")):
                     u = h.get("url", "") or h.get("source_url", "")
                     g = url_to_cat.get(u) if url_to_cat.get(u) in CAT_ORDER else "기타"
-            elif g == "기타":
-                # 역방향 승격 — '기타'로 라벨됐지만 제목이 등록 경쟁사를 가리키면
-                # 그 경쟁사 그룹으로 (예: 합성기가 Yaskawa 기사를 기타로 둔 경우).
-                comp = competitor_for_text(h.get("text", ""))
-                if comp:
-                    g = comp
             groups.setdefault(g, []).append(h)
             # 경쟁사인지 카테고리인지 구분 (CAT_ORDER에 없으면 경쟁사)
             if g not in CAT_ORDER and g != "기타" and g not in competitor_names:

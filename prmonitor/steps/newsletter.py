@@ -172,10 +172,10 @@ def _core_prompt(date: str, core_out) -> str:
     org = domainpack.get("branding", "org_name", "")
     return f"""너는 {org} 뉴스레터 합성의 '교차' 세션이다. {spec} 의 규칙(톤·인사이트·자가검증)을 따른다.
 입력 {synthesis_ctx} 하나만 읽는다 (tier1 팩트 + tier2 + 자사 맥락 인라인).
-**이번 호출은 tldr · insights · company_glossary · landscape_update_points 만 생성한다.**
-category_summary 와 headlines 는 카테고리별 호출이 담당하니 **만들지 마라.**
+**이번 호출은 tldr · insights · landscape_update_points 만 생성한다.**
+category_summary · headlines · company_glossary 는 다른 단계가 담당하니 **만들지 마라.**
 각 insight 의 observation·implication 은 **문장당 60자 이내**로 쪼갠다 ("A이고 B이며 C다" → "A다. B다. C다."). 긴 복문 금지.
-{core_out} 에 JSON 으로 저장: {{"tldr": "...", "insights": [...], "company_glossary": [...], "landscape_update_points": [...]}}.
+{core_out} 에 JSON 으로 저장: {{"tldr": "...", "insights": [...], "landscape_update_points": [...]}}.
 설명·잡담 없이 파일만 쓴다. Task/Agent 서브에이전트 스폰 금지."""
 
 
@@ -186,6 +186,17 @@ def _cat_prompt(date: str, cid: str, slice_path, out_path) -> str:
 입력 {slice_path} 하나만 읽는다.
 {out_path} 에 스펙 스키마({{"category_id","category_name","summary","headlines"}})로 저장한다.
 설명·잡담 없이 파일만 쓴다. Task/Agent 서브에이전트 스폰 금지."""
+
+
+def _glossary_prompt(date, briefing_path, ctx_path, gloss_out) -> str:
+    """post-merge 용어집 — 최종 원고에 실제 등장한 비유명 회사만 스캔(경제적·누락0)."""
+    return f"""너는 뉴스레터 '이번 호 등장 기업' 용어집 보강 세션이다.
+{briefing_path} (최종 원고: tldr·insights·category_summary·headlines)를 처음부터 끝까지 읽고,
+원고에 **실제로 등장하는** 회사 중 독자가 처음 들을 만한 **비유명** 회사에 1줄 한국어 설명을 붙인다.
+- 제외: {ctx_path} 의 self_context_bundle.competitors_yaml 의 경쟁사, 빅테크(NVIDIA·Amazon·Google·Microsoft·Samsung 등), 자사, 이미 유명한 곳.
+- 설명: "[국가] [주력분야] [업태]" + 구체 앵커(대표 제품·설립연도·소속 등) 한 절. {ctx_path} 의 facts·tier2_headlines 에서 확인되는 사실만. 30~70자. 과장·평가·전망 금지. 영문 회사명은 원문 그대로(음역 금지).
+- **원고에 안 나온 회사는 넣지 마라(경제성). 원고에 나온 비유명 회사는 빠짐없이(누락 0).**
+{gloss_out} 에 JSON 배열로 저장: [{{"name":"...","desc":"..."}}]. 설명·잡담 없이 파일만 쓴다."""
 
 
 def _run_parallel_synth(date, claude_bin, synth_model, synth_effort, synth_env):
@@ -286,9 +297,34 @@ def _run_parallel_synth(date, claude_bin, synth_model, synth_effort, synth_env):
         f"카테고리 {len(briefing['category_summary'])}/{len(cat_outs)}, "
         f"헤드라인 {len(briefing['headlines'])}건")
 
+    # 용어집(company_glossary)은 최종 원고 기준 보강 — 렌더 원고에 실제 등장한 비유명
+    # 회사만(경제적·누락 0). Haiku 1회. (core 가 입력 전체를 추측 스캔하면 과다+누락 둘 다 남음)
+    briefing_path = paths.BRIEFING_DIR / f"newsletter-briefing-{date}.json"
+    gloss_out = paths.BRIEFING_DIR / f"briefing-glossary-{date}.json"
+    try:
+        gloss_out.unlink()
+    except FileNotFoundError:
+        pass
+    gargv = [claude_bin, "-p", _glossary_prompt(date, briefing_path, ctx_path, gloss_out),
+             "--model", os.environ.get("PRM_GLOSSARY_MODEL", "claude-haiku-4-5"),
+             "--effort", "low", "--allowedTools", "Read,Write",
+             "--output-format", "stream-json", "--verbose"]
+    try:
+        with open(paths.LOGS_DIR / f"synth-glossary-{date}.log", "w", encoding="utf-8") as lf:
+            subprocess.run(gargv, stdout=lf, stderr=subprocess.STDOUT, env=synth_env, check=False)
+        if gloss_out.exists():
+            gl = json.loads(gloss_out.read_text(encoding="utf-8"))
+            if isinstance(gl, list) and gl:
+                briefing["company_glossary"] = gl
+                briefing_path.write_text(
+                    json.dumps(briefing, ensure_ascii=False, indent=2), encoding="utf-8")
+                log(f"용어집 보강: {len(gl)}곳")
+    except (OSError, json.JSONDecodeError) as e:
+        warn(f"용어집 보강 실패 — {e}")
+
     # 임시 분할 산출물 정리 (머지 완료 — 디버깅 필요 시 PRM_KEEP_SPLITS 로 보존)
     if not os.environ.get("PRM_KEEP_SPLITS"):
-        temps = [core_out] + [o for _, o, _ in cat_outs]
+        temps = [core_out, gloss_out] + [o for _, o, _ in cat_outs]
         temps += [paths.PROCESSED_DIR / f"synctx-cat-{c.get('category_id','')}-{date}.json"
                   for c in cats if c.get("category_id")]
         for p in temps:
