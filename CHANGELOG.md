@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.1 — 도메인 중립성 정리 + setup 리셋 가드레일
+
+### 변경
+- **엔진 도메인 중립화**: `format.py` 토큰 매칭 stopword 에 박혀 있던 로보틱스 고유어
+  (`로봇/robot/robotics`)를 제거하고 도메인팩 `generic_category_terms` 에서 가져오도록 변경 —
+  어느 산업이든 그 도메인 범용어가 자동 반영. `self-context-updater`·`setup-bootstrap` 프롬프트의
+  로봇·삼성·자사명 예시를 플레이스홀더로 교체(모델이 베껴 출력하던 부류 차단).
+- **setup 리셋 가드레일**(`scripts/lib/setup-guard.py`): 기설정 워크스페이스에서 `/setup` 을
+  잘못 실행해도 사용자 도메인팩을 말없이 덮지 않는다. `--check` 가 라이브 `company.name` 을
+  번들 예시와 비교해 사용자 실데이터면 **exit 3**, `--backup` 이 `config.bak-<ts>/` 스냅샷 생성.
+  INSTALL·setup-bootstrap 이 쓰기 전에 이 결정론적 가드를 거치도록 명문화(눈대중 금지).
+  (init/SessionStart 은 이미 빈 파일만 시드해 안전.) 가드·중립화 테스트 추가 → 131.
+
 ## 0.5.0 — 이메일 발송 채널 추상화 (Azure 비종속)
 
 이메일이 Microsoft Graph(Azure)에만 묶여 있어 Gmail·SES·사내 메일을 쓰는 조직은 발송을

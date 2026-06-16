@@ -49,13 +49,19 @@ tools:
 
 ## 절차
 
-### 0. 기존 파일 보호 (쓰기 전 필수)
-어떤 파일을 `Write` 하기 전에 `${CLAUDE_PROJECT_DIR}/config/` 를 먼저 확인한다.
-- `company-profile.yaml` 이 이미 있고 `company.name` 이 예시값(콘토소 등)이 아니면 →
-  **사용자 실데이터.** 절대 말없이 덮지 않는다. 호출자(메인 스레드)에 "이미 [name]
-  도메인팩이 있습니다. 백업 후 진행할까요?" 를 돌려주고 승인 전엔 쓰지 않는다.
-- 진행이 승인되면 덮어쓰기 전 `config/` 를 `config.bak-$(date +%F-%H%M%S)/` 로 복사한다(삭제 X).
-- 번들 시드 기본값(미편집 예시 도메인팩)만 있으면 그대로 진행해도 된다(백업은 선택).
+### 0. 기존 파일 보호 (쓰기 전 필수 — 눈대중 말고 코드로)
+어떤 파일을 `Write` 하기 전에 **결정론적 가드를 먼저 실행**한다:
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/setup-guard.py" --check
+```
+- **exit 0**(미설정/번들 예시 그대로) → 그대로 진행. 백업 불필요.
+- **exit 3**(사용자 실데이터) → 절대 말없이 덮지 않는다. 호출자(메인 스레드)에 "이미 [name]
+  도메인팩이 있습니다. 백업 후 진행할까요?" 를 돌려주고 **승인 전엔 한 글자도 쓰지 않는다.**
+  승인되면 쓰기 전에 백업부터:
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/setup-guard.py" --backup
+  ```
+  → `config.bak-<timestamp>/` 생성 성공 후에만 도메인팩 쓰기를 시작한다.
 
 ### 1. 리서치 (WebSearch / WebFetch)
 - "{회사명} 경쟁사", "{industry} top companies/market leaders", "{industry} 시장 점유율"
@@ -72,11 +78,11 @@ tools:
   RSS URL 은 WebFetch 로 실제 응답을 확인해 죽은 피드를 거른다.
 - **자사명 변형 수집 (PR 모니터링 핵심).** 자사가 뉴스에 실제로 어떻게 표기되는지
   모든 변형을 모은다 — 검색 누락의 주원인이다. 리서치로 확인하고, 모호하면 사람에게 묻는다:
-  - 한글 공식명 + **띄어쓰기 변형**(예: "레인보우로보틱스" / "레인보우 로보틱스")
-  - 영문명 + **공백유무 변형**(예: "Rainbow Robotics" / "RainbowRobotics")
+  - 한글 공식명 + **띄어쓰기 변형**(예: "아무회사" / "아무 회사")
+  - 영문명 + **공백유무 변형**(예: "AcmeCorp" / "Acme Corp")
   - 로마자 표기·약칭·구 사명·티커/종목코드·자주 쓰이는 영문 약어
   - ⚠️ 매칭 일부가 대소문자 구분(`kw in text.lower()`)이라, 각 영문 변형의 **소문자판도 함께**
-    `self_aliases` 에 넣는다(예: "rainbow robotics", "rainbowrobotics").
+    `self_aliases` 에 넣는다(예: "acmecorp", "acme corp").
   → `pr-queries.yaml` 의 `self_aliases`(노이즈 제거·언급 분류)와 `gnews_queries`
     (직접 수집 쿼리, 국문·영문 각각)에 반영. 너무 일반적이라 오탐 날 변형은 제외.
 

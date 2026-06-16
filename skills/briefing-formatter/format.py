@@ -74,6 +74,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from prmonitor import domainpack
 
 
+# 토큰 매칭 stopword 의 산업 공통어 — 도메인팩에서 가져온다(엔진에 산업 가정 하드코딩 금지).
+# 로보틱스면 "robot/로봇", EV면 "ev/vehicle" 등 그 도메인의 범용어가 자동 반영된다.
+_GENERIC_STOP = {str(t).lower() for t in
+                 domainpack.get("classify-tuning", "generic_category_terms", []) or []}
+
 # ── 카테고리 색상 / 클래스 (도메인팩 categories.yaml 에서 구성) ──
 _CAT_PACK = domainpack.load_pack("categories")
 _CAT_DEFS = _CAT_PACK.get("categories", {})
@@ -752,7 +757,7 @@ def render_tldr(tldr: str) -> str:
 def render_company_glossary(glossary: list[dict]) -> str:
     """이번 호 등장 기업 — 낯선 회사 1줄 설명. 참고용 부록(출처 앞) 컴팩트 2단 표.
 
-    데이터: [{"name": "NEURA Robotics", "desc": "독일 휴머노이드 스타트업"}, ...]
+    데이터: [{"name": "<회사명>", "desc": "<국가> <주력분야> <업태>"}, ...]
     insight-synthesizer 가 비주류 기업만 골라 생성. 없으면 렌더하지 않음.
     """
     if not glossary:
@@ -804,7 +809,7 @@ def swap_insight_title(title: str) -> str:
 def insight_fact_title(raw_title: str) -> str:
     """인사이트 제목에서 '—' 앞 통찰 문장만 남긴다 (뒤 자사 함의는 함의 블록과 중복).
 
-    단, 앞절이 스텁("NEURA $1.4B" 같은 뉴스 라벨, 12자 미만)이면 LLM이
+    단, 앞절이 스텁("[회사] $1.4B" 같은 뉴스 라벨, 12자 미만)이면 LLM이
     통찰을 대시 뒤에 쓴 것 — 자르면 라벨만 남으므로 전체 제목을 그대로 노출.
     em/en 대시 모두 처리.
     """
@@ -889,16 +894,18 @@ def attach_inline_refs(escaped_text: str, articles: list[dict],
     def _tokens(a: dict) -> list[str]:
         """기사 제목에서 매칭용 토큰 — 영문 3자+ / 한글 2자+ 고유명사 후보.
 
-        범용 비즈니스 단어는 제외 — "투자" 하나로 무관 기사(ACS 유치 보도)가
-        삼성 투자 문장에 붙는 오매칭 방지. 회사명·제품명이 신뢰할 앵커.
+        범용 비즈니스 단어는 제외 — "투자" 하나로 무관 기사가 다른 회사 투자
+        문장에 붙는 오매칭 방지. 회사명·제품명이 신뢰할 앵커.
         """
         title = a.get("title", "") or a.get("text", "")
         toks = _re.findall(r"[A-Za-z][A-Za-z0-9.&-]{2,}|[가-힣]{2,}", title)
+        # 보편 기능어·비즈니스 동사만 하드코딩. 산업 공통어(robot/ev 등)는 도메인팩
+        # generic_category_terms 에서 와 산업 가정을 엔진에 박지 않는다.
         stop = {"the", "and", "for", "with", "from", "into", "발표", "공개", "출시",
                 "체결", "확대", "추진", "계획", "관련", "기사", "보도", "기업", "회사",
-                "로봇", "robotics", "robot", "robots",
-                "투자", "유치", "인수", "합병", "상장", "단독", "스타트업", "산업용",
+                "투자", "유치", "인수", "합병", "상장", "단독", "스타트업",
                 "시스템", "솔루션", "국내", "미국", "한국", "글로벌", "세계", "최초", "최대"}
+        stop |= _GENERIC_STOP
         return [t for t in toks if t.lower() not in stop]
 
     if not escaped_text:
