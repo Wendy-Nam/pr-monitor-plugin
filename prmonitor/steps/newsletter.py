@@ -165,6 +165,139 @@ def _synth_prompt(date: str) -> str:
 """
 
 
+def _core_prompt(date: str, core_out) -> str:
+    """병렬 경로 '교차' 호출 — tldr·insights·glossary·landscape 만 생성(동향·헤드라인 제외)."""
+    spec = paths.AGENTS_DIR / "insight-synthesizer.md"
+    synthesis_ctx = paths.PROCESSED_DIR / f"synthesis-context-{date}.json"
+    org = domainpack.get("branding", "org_name", "")
+    return f"""너는 {org} 뉴스레터 합성의 '교차' 세션이다. {spec} 의 규칙(톤·인사이트·자가검증)을 따른다.
+입력 {synthesis_ctx} 하나만 읽는다 (tier1 팩트 + tier2 + 자사 맥락 인라인).
+**이번 호출은 tldr · insights · company_glossary · landscape_update_points 만 생성한다.**
+category_summary 와 headlines 는 카테고리별 호출이 담당하니 **만들지 마라.**
+각 insight 의 observation·implication 은 **문장당 60자 이내**로 쪼갠다 ("A이고 B이며 C다" → "A다. B다. C다."). 긴 복문 금지.
+{core_out} 에 JSON 으로 저장: {{"tldr": "...", "insights": [...], "company_glossary": [...], "landscape_update_points": [...]}}.
+설명·잡담 없이 파일만 쓴다. Task/Agent 서브에이전트 스폰 금지."""
+
+
+def _cat_prompt(date: str, cid: str, slice_path, out_path) -> str:
+    """병렬 경로 단일 카테고리 동향 호출."""
+    spec = paths.AGENTS_DIR / "category-digest.md"
+    return f"""{spec} 의 규칙을 따르는 단일 카테고리 동향 합성 세션이다 (category_id={cid}).
+입력 {slice_path} 하나만 읽는다.
+{out_path} 에 스펙 스키마({{"category_id","category_name","summary","headlines"}})로 저장한다.
+설명·잡담 없이 파일만 쓴다. Task/Agent 서브에이전트 스폰 금지."""
+
+
+def _run_parallel_synth(date, claude_bin, synth_model, synth_effort, synth_env):
+    """교차 호출 1개 + 카테고리별 호출 N개를 동시 실행하고 briefing 으로 머지한다.
+
+    카테고리 동향이 출력의 대부분이므로 카테고리별로 쪼개 병렬화하면 wall-clock 이
+    sum→max 로 준다. 각 호출은 자기 슬라이스만 보므로 입력도 작고 집중돼 품질도 오른다.
+    """
+    import json
+    from concurrent.futures import ThreadPoolExecutor
+
+    ctx_path = paths.PROCESSED_DIR / f"synthesis-context-{date}.json"
+    ctx = json.loads(ctx_path.read_text(encoding="utf-8"))
+    cats = ctx.get("categories", []) or []
+    self_full = ctx.get("self_context_bundle", {}) or {}
+    # 동향은 외부 서술 — 기준선·톤만 필요(narrative/key-events 는 인사이트용이라 제외 = 입력 축소)
+    self_slim = {k: self_full[k] for k in ("competitor_landscape", "style_rules")
+                 if self_full.get(k)}
+    t2_by_cat: dict = {}
+    for h in ctx.get("tier2_headlines", []) or []:
+        t2_by_cat.setdefault(h.get("category", ""), []).append(h)
+
+    jobs = []  # (label, out_path, prompt)
+    # LLM 출력은 워크스페이스(BRIEFING_DIR)로 — claude -p 는 .claude/ 캐시 경로 Write 를
+    # '민감 파일'로 차단한다. 슬라이스 입력(synctx-cat)은 Python 이 캐시에 써도 Read 는 허용.
+    core_out = paths.BRIEFING_DIR / f"briefing-core-{date}.json"
+    jobs.append(("core", core_out, _core_prompt(date, core_out)))
+    cat_outs = []  # (cid, out, name)
+    for c in cats:
+        cid = c.get("category_id", "")
+        if not cid:
+            continue
+        sl = {"date": date, "category_id": cid,
+              "category_name": c.get("category_name", ""),
+              "facts": c.get("facts", []),
+              "tier2_headlines": t2_by_cat.get(cid, []),
+              "self_context": self_slim}
+        sl_path = paths.PROCESSED_DIR / f"synctx-cat-{cid}-{date}.json"
+        sl_path.write_text(json.dumps(sl, ensure_ascii=False, indent=2), encoding="utf-8")
+        out = paths.BRIEFING_DIR / f"briefing-cat-{cid}-{date}.json"
+        cat_outs.append((cid, out, c.get("category_name", "")))
+        jobs.append((f"cat-{cid}", out, _cat_prompt(date, cid, sl_path, out)))
+
+    def _run_one(job):
+        label, out, prompt = job
+        try:
+            out.unlink()
+        except FileNotFoundError:
+            pass
+        logp = paths.LOGS_DIR / f"synth-{label}-{date}.log"
+        argv = [claude_bin, "-p", prompt, "--model", synth_model,
+                "--effort", synth_effort, "--allowedTools", "Read,Write,Edit",
+                "--output-format", "stream-json", "--verbose"]
+        try:
+            with open(logp, "w", encoding="utf-8") as lf:
+                subprocess.run(argv, stdout=lf, stderr=subprocess.STDOUT,
+                               env=synth_env, check=False)
+        except OSError as e:
+            warn(f"합성 호출 실패 [{label}] — {e}")
+        return label, out.exists()
+
+    # 동시 6 (rate-limit 여유). 카테고리 6개 + core 면 2배치.
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        list(ex.map(_run_one, jobs))
+
+    # 머지
+    briefing = {"date": date, "tldr": "", "insights": [], "company_glossary": [],
+                "landscape_update_points": [], "category_summary": [], "headlines": []}
+    if core_out.exists():
+        try:
+            core = json.loads(core_out.read_text(encoding="utf-8"))
+            briefing["tldr"] = core.get("tldr", "")
+            briefing["insights"] = core.get("insights", [])
+            briefing["company_glossary"] = core.get("company_glossary", []) or core.get("glossary", [])
+            briefing["landscape_update_points"] = core.get("landscape_update_points", [])
+        except (json.JSONDecodeError, OSError) as e:
+            warn(f"core 머지 실패 — {e}")
+    for cid, out, cname in cat_outs:
+        if not out.exists():
+            warn(f"카테고리 동향 누락 [{cid}]")
+            continue
+        try:
+            d = json.loads(out.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as e:
+            warn(f"카테고리 머지 실패 [{cid}] — {e}")
+            continue
+        briefing["category_summary"].append({
+            "category_id": cid,
+            "category_name": d.get("category_name", cname),
+            "summary": d.get("summary", "")})
+        for h in d.get("headlines", []) or []:
+            h.setdefault("group", cid)
+            briefing["headlines"].append(h)
+
+    (paths.BRIEFING_DIR / f"newsletter-briefing-{date}.json").write_text(
+        json.dumps(briefing, ensure_ascii=False, indent=2), encoding="utf-8")
+    log(f"병렬 합성 머지: core={'OK' if core_out.exists() else 'FAIL'}, "
+        f"카테고리 {len(briefing['category_summary'])}/{len(cat_outs)}, "
+        f"헤드라인 {len(briefing['headlines'])}건")
+
+    # 임시 분할 산출물 정리 (머지 완료 — 디버깅 필요 시 PRM_KEEP_SPLITS 로 보존)
+    if not os.environ.get("PRM_KEEP_SPLITS"):
+        temps = [core_out] + [o for _, o, _ in cat_outs]
+        temps += [paths.PROCESSED_DIR / f"synctx-cat-{c.get('category_id','')}-{date}.json"
+                  for c in cats if c.get("category_id")]
+        for p in temps:
+            try:
+                p.unlink()
+            except FileNotFoundError:
+                pass
+
+
 def _parse_cost(claude_log: str):
     """Total cost from the stream-json log, via JSON — not grep/awk.
 
@@ -262,7 +395,7 @@ def run(args) -> int:
         os.environ.get("PRM_SYNTH_MODEL") or _synth_model_from_spec())
     # agent 모드 기본 extended thinking 이 30분 폭주를 일으킴 — effort 로 캡한다.
     # 입력(synthesis-context)이 작아 low 로도 Sonnet 교차합성 품질은 유지된다.
-    synth_effort = os.environ.get("PRM_SYNTH_EFFORT", "low")
+    synth_effort = os.environ.get("PRM_SYNTH_EFFORT", "medium")
     claude_argv = [
         claude_bin, "-p", prompt,
         "--model", synth_model,
@@ -279,13 +412,26 @@ def run(args) -> int:
     synth_env = dict(os.environ)
     synth_env["MAX_THINKING_TOKENS"] = os.environ.get("PRM_SYNTH_THINKING", "0")
     synth_env.pop("CLAUDE_EFFORT", None)  # --effort 플래그가 정본
+    # stale-briefing 가드: 합성 직전 기존 briefing 삭제 → 아래 require_file 의 "존재"가
+    # "이번 합성이 실제로 산출함"을 의미하게 한다. (claude -p 가 새 briefing 을 못 쓰면
+    # 옛 briefing 이 조용히 렌더되던 버그 차단 — 실패 시 stale 대신 명확히 중단.)
+    briefing_json = paths.BRIEFING_DIR / f"newsletter-briefing-{date}.json"
+    briefing_json.unlink(missing_ok=True)
     claude_rc = 0
-    try:
+    if os.environ.get("PRM_SYNTH_PARALLEL", "1") != "0":  # 기본 병렬, =0 이면 단일 폴백
+        # 병렬 분리: 교차 호출 1 + 카테고리별 N 동시 → briefing 머지(아래 require_file 가 판정).
+        log("Step 7: 병렬 분리 합성 (교차 1 + 카테고리별 N, 동시 실행)...")
+        try:
+            _run_parallel_synth(date, claude_bin, synth_model, synth_effort, synth_env)
+        except Exception as e:  # noqa: BLE001 — briefing 존재 여부로 최종 판단
+            warn(f"병렬 합성 예외 — {e} (briefing 산출 여부로 판단)")
+    else:
+      try:
         with open(output_log, "w", encoding="utf-8") as logf:
             proc = subprocess.run(claude_argv, stdout=logf, env=synth_env,
                                   stderr=subprocess.STDOUT, check=False)
         claude_rc = proc.returncode
-    except OSError as e:
+      except OSError as e:
         # Spawn itself failed (e.g. binary vanished between which() and run()).
         warn(f"claude 실행 실패 — {e} (로그: {output_log})")
         claude_rc = 1

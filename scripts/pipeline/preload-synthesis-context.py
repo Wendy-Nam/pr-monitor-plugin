@@ -190,7 +190,9 @@ def build_landscape_bundle(mentioned: set[str]) -> str:
         base = (comp.get("baseline") or "").strip()
         if key in hit_keys:
             lines.append(f"- {key}: {base}" if base else f"- {key}:")
-            for u in (comp.get("updates", []) or []) + (comp.get("archive", []) or []):
+            # archive 는 제외 — 누적 이력(같은 사실의 병합 재진술)이라 합성엔 노이즈.
+            # baseline + 최근 updates 만으로 "기준선 대비 새 진전" 판단에 충분.
+            for u in (comp.get("updates", []) or []):
                 src = f" ({u.get('source', '')}, {u.get('date', '')})"
                 lines.append(f"  - [{u.get('dimension', '')}] {u.get('info', '')}{src}")
         elif base:

@@ -956,7 +956,7 @@ def attach_inline_refs(escaped_text: str, articles: list[dict],
             if score > best_score:
                 best_si, best_score = si, score
         if best_si >= 0 and best_score >= min_score:
-            refs_per_sentence.setdefault(best_si, []).append(a)
+            refs_per_sentence.setdefault(best_si, []).append((a, best_score))
             if url:
                 seen_urls.add(url)
         elif keep_unmatched:
@@ -971,6 +971,16 @@ def attach_inline_refs(escaped_text: str, articles: list[dict],
     for a in (extra_candidates or []):
         _assign(a, keep_unmatched=False, min_score=2)
 
+    # 문장당 inline ref 상한 — 토큰 1개로 우르르 붙는 폭탄 방지(고유명사 많은 문장이
+    # 자석이 돼 무관 기사가 쏠리는 오귀속 차단). 점수 높은 순 N개만 인라인, 나머지(약한
+    # 매칭)는 미매칭으로 돌려 tail "이 밖에 ~" 로 보낸다. tail refs_str 은 이 상한과 무관.
+    _MAX_INLINE = 4
+    for si in list(refs_per_sentence):
+        items = sorted(refs_per_sentence[si], key=lambda x: -x[1])
+        refs_per_sentence[si] = items[:_MAX_INLINE]
+        for a, _s in items[_MAX_INLINE:]:
+            unmatched.append(a)
+
     # 문단 구분: 빈 줄(<br><br>)은 간격이 너무 뜸 — 호출부가 <p>로 감싸므로
     # 문단을 닫고 좁은 마진(6px)의 새 <p>로 잇는다
     _PARA_SEP = '</p><p style="margin:16px 0 0;">'
@@ -979,7 +989,7 @@ def attach_inline_refs(escaped_text: str, articles: list[dict],
         if si > 0:
             out += _PARA_SEP if para_of[si] != para_of[si - 1] else " "
         out += sent
-        for a in refs_per_sentence.get(si, []):
+        for a, _s in refs_per_sentence.get(si, []):
             out += _ref(a)
     out = out.strip()
     if unmatched:
