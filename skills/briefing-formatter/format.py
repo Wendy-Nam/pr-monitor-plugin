@@ -83,27 +83,27 @@ CAT_COLORS = {
     cid: _CAT_DEFS[cid]["color"]
     for cid in _CAT_PACK.get("order", [])
 }
-# legacy fallbacks: industrial_robot, self (reference/default 는 CAT_COLORS 에 미포함 — 원본과 일치)
-CAT_COLORS["industrial_robot"] = _CAT_FALLBACKS["industrial_robot"]["color"]
-CAT_COLORS["self"] = _CAT_FALLBACKS["self"]["color"]
-
 CAT_DOT_CLASSES = {
     cid: _CAT_DEFS[cid]["dot_class"]
     for cid in _CAT_PACK.get("order", [])
 }
-CAT_DOT_CLASSES["industrial_robot"] = _CAT_FALLBACKS["industrial_robot"]["dot_class"]  # legacy
+# fallback 카테고리(예: self·industrial_robot 등 도메인팩별)도 color/dot_class 가 있으면 병합.
+# 키를 하드코딩하지 않는다 — 도메인팩에 없으면 그냥 건너뛴다.
+for _fid, _fdef in _CAT_FALLBACKS.items():
+    if isinstance(_fdef, dict):
+        if _fdef.get("color"):
+            CAT_COLORS.setdefault(_fid, _fdef["color"])
+        if _fdef.get("dot_class"):
+            CAT_DOT_CLASSES.setdefault(_fid, _fdef["dot_class"])
 
 CAT_ORDER = list(_CAT_PACK.get("order", []))
 
 # ── 브랜딩 문자열 (도메인팩 branding.yaml 에서 구성) ──
 # 헤더/푸터를 하드코딩하지 않고 도메인팩에서 읽는다. 실제 값은 도메인팩에서 오며,
 # 폴백은 최후의 중립 기본값(특정 조직 브랜딩 없음).
-try:
-    _BRANDING_PACK = domainpack.load_pack("branding")
-except Exception:
-    _BRANDING_PACK = {}
-HTML_HEADER_NEWSLETTER = _BRANDING_PACK.get("html_header_newsletter", "WEEKLY INTELLIGENCE")
-HTML_FOOTER = _BRANDING_PACK.get("html_footer", "")
+# 브랜딩: branding.yaml 값 우선, 비었거나 예시 자리표시면 회사명에서 파생(domainpack.branding).
+HTML_HEADER_NEWSLETTER = domainpack.branding("html_header_newsletter")
+HTML_FOOTER = domainpack.branding("html_footer")
 
 # ── CSS ────────────────────────────────────────────────────────
 CSS = """\
@@ -156,7 +156,6 @@ CSS = """\
   .summary-block .sb-hd .cat-dot { margin-right: 10px; }
   .summary-block p { font-size: 14px; color: #292524; line-height: 1.65; }
   .summary-block p + p { margin-top: 18px; }
-  .summary-block .sb-chips { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
 
   /* ── Section heading ── */
   h2 {
@@ -432,6 +431,23 @@ def load_self_blocklist(company_profile_path: str | None = None):
                         _SELF_BLOCKLIST.append(name[:5].lower())
         except Exception:
             pass
+    # pr-queries.yaml 의 self_aliases 도 읽어 영문 별칭 커버 (company-profile aliases 미정의 시 보완)
+    pr_q_candidates = [
+        Path("config/pr-queries.yaml"),
+        Path(__file__).resolve().parent.parent.parent.parent / "config" / "pr-queries.yaml",
+    ]
+    for pq in pr_q_candidates:
+        if pq.exists():
+            try:
+                import yaml as _yaml
+                pq_data = _yaml.safe_load(pq.read_text(encoding="utf-8")) or {}
+                for alias in pq_data.get("self_aliases", []):
+                    kw = str(alias).lower()
+                    if kw and kw not in _SELF_BLOCKLIST:
+                        _SELF_BLOCKLIST.append(kw)
+            except Exception:
+                pass
+            break
 
 def _is_self_mention(title: str, summary: str) -> bool:
     if not _SELF_BLOCKLIST:
@@ -961,16 +977,28 @@ def attach_inline_refs(escaped_text: str, articles: list[dict],
 
         if truly_new:
             # 건수 무관하게 "이 밖에 ~ 등도 주목됐다." 형식으로 통일
+            # ponytail: cap at 3 display items; filter short/keyword-only titles
             snippets = []
             for a in truly_new:
+                if len(snippets) >= 3:
+                    break
                 hl = a.get("text", "").strip()
                 short = _re.split(r"[,，。\.\(（—–\-]", hl)[0].strip()
-                if short:
-                    snippets.append(esc(short))
+                words = short.split()
+                # 1단어 이하 또는 8자 미만은 너무 짧아 의미 없음 (예: "홍콩", "삼성")
+                if len(words) < 2 or len(short) < 8:
+                    continue
+                # 영문 전용 제목은 앞 4단어만 (예: "Watch This Humanoid Robot Move...")
+                if not any('가' <= ch <= '힣' for ch in short):
+                    short = " ".join(words[:4]) + ("…" if len(words) > 4 else "")
+                snippets.append(esc(short))
             refs_str = "".join(_ref(a) for a in truly_new)
             if snippets:
                 joined = ", ".join(snippets)
                 out += f" 이 밖에 {joined} 등도 주목됐다.{refs_str}"
+            else:
+                # 표시할 snippet 없어도 ref 번호는 붙여야 커버리지 유지
+                out += refs_str
 
         if warn_label and truly_new:
             for a in truly_new:
@@ -979,8 +1007,13 @@ def attach_inline_refs(escaped_text: str, articles: list[dict],
     return out
 
 
-def headline_inner_html(h: dict) -> str:
-    """헤드라인 항목의 본문 HTML(텍스트 + 언어태그 + 출처링크). li/div 래퍼 없음."""
+def headline_inner_html(h: dict, reg: "SourceRegistry | None" = None) -> str:
+    """헤드라인 항목의 본문 HTML(텍스트 + 언어태그 + 출처링크). li/div 래퍼 없음.
+
+    헤드라인의 `/매체명` 이 이미 그 기사로 링크되므로 출처번호 [n] 은 붙이지 않는다
+    (중복·시각 노이즈). 인라인 [n] 번호는 인사이트·카테고리 산문에서만 쓴다.
+    reg 인자는 호출부 호환을 위해 남겨두되 사용하지 않는다.
+    """
     url = h.get("url", "") or h.get("source_url", "")
     raw_sname = resolve_media_name(h.get("source", ""))
     sname = esc(raw_sname)
@@ -1023,10 +1056,23 @@ def render_category_summary_blocks(category_summary: list[dict],
                    if dot_cls
                    else f'<div class="cat-dot" style="background:{color};"></div>')
 
-        # 이 카테고리 기사 = 헤드라인 그룹 전체(없으면 category sources). 자사 언급 제외.
-        arts = headlines_by_group.get(cat_id) or cat.get("sources", [])
+        # 이 카테고리 기사 = 합성기 헤드라인(한국어 text) + reg 백필(나머지 수집분).
+        # 수집된 그 카테고리 전 기사를 대상으로 삼아, 중요한 건 산문에 인라인 [n],
+        # 나머지는 dump_unmatched 가 "이 밖에 ~ 등 [n]" 으로 쓸어담는다. 자사 언급 제외.
+        selected = headlines_by_group.get(cat_id) or cat.get("sources", [])
+        seen_u = {(a.get("url", "") or a.get("source_url", "")) for a in selected}
+        arts = list(selected)
+        for e in reg.all_entries():
+            if e.get("category") != cat_id:
+                continue
+            u = e.get("url", "")
+            if u and u in seen_u:
+                continue
+            seen_u.add(u)
+            arts.append({"url": u, "title": e.get("title", ""), "text": e.get("title", "")})
         arts = [a for a in arts
-                if not _is_self_mention(a.get("title", ""), a.get("summary", ""))]
+                if not _is_self_mention(a.get("title", "") or a.get("text", ""),
+                                        a.get("summary", ""))]
 
         # 경쟁사 그룹 + 타 카테고리 헤드라인 — 카테고리 서술이 다른 그룹 기사를
         # 인용할 때 번호 누락 방지. 매칭될 때만 부착(미매칭은 버림).
@@ -1036,9 +1082,11 @@ def render_category_summary_blocks(category_summary: list[dict],
                                          h.get("summary", ""))]
 
         cat_label = f"카테고리[{cat.get('category_name', cat_id)}]"
+        # dump_unmatched=True: 산문에 안 엮인 수집 기사를 "이 밖에 ~ 등도 주목됐다 [n]"
+        # 으로 쓸어담아, 그 카테고리의 모든 출처번호가 본문에 1회 이상 등장하게 한다.
         body = attach_inline_refs(text, arts, reg, extra_candidates=extra,
                                   warn_label=cat_label,
-                                  dump_unmatched=False) if text else ""
+                                  dump_unmatched=True) if text else ""
 
         html += (
             f'<div class="summary-block" style="border-left-color:{color};">\n'
@@ -1055,17 +1103,19 @@ def render_sources(reg: SourceRegistry, total_articles: int = 0) -> str:
     if not entries:
         return ""
 
-    # (label, color) 튜플 — 도메인팩 categories.yaml 에서 구성
+    # (label, color) 튜플 — 도메인팩 categories.yaml 에서 일반적으로 구성.
+    # 카테고리 id 를 하드코딩하지 않는다(도메인팩마다 다름).
     CAT_NAMES = {
-        "industrial_robot":       (_CAT_FALLBACKS["industrial_robot"]["label_ko"], _CAT_FALLBACKS["industrial_robot"]["color"]),
-        "humanoid":               (_CAT_DEFS["humanoid"]["label_ko"],               _CAT_DEFS["humanoid"]["color"]),
-        "cobots":                 (_CAT_DEFS["cobots"]["label_ko"],                 _CAT_DEFS["cobots"]["color"]),
-        "manufacturing_platform": (_CAT_DEFS["manufacturing_platform"]["label_ko"], _CAT_DEFS["manufacturing_platform"]["color"]),
-        "amr":                    (_CAT_DEFS["amr"]["label_ko"],                    _CAT_DEFS["amr"]["color"]),
-        "funding":                (_CAT_DEFS["funding"]["label_ko"],                _CAT_DEFS["funding"]["color"]),
-        "reference":              (_CAT_FALLBACKS["reference"]["label_ko"],         _CAT_FALLBACKS["reference"]["color"]),
-        "기타":                   (_CAT_FALLBACKS["default"]["label_ko"],           _CAT_FALLBACKS["reference"]["color"]),
+        cid: (_CAT_DEFS[cid]["label_ko"], _CAT_DEFS[cid]["color"])
+        for cid in _CAT_PACK.get("order", [])
+        if cid in _CAT_DEFS
     }
+    for _fid, _fdef in _CAT_FALLBACKS.items():
+        if isinstance(_fdef, dict) and _fdef.get("label_ko") and _fdef.get("color"):
+            CAT_NAMES.setdefault(_fid, (_fdef["label_ko"], _fdef["color"]))
+    # "기타" 별칭 → default(없으면 중립)
+    _dflt = _CAT_FALLBACKS.get("default") or {}
+    CAT_NAMES.setdefault("기타", (_dflt.get("label_ko", "기타"), _dflt.get("color", "#9ca3af")))
 
     cat_groups: dict[str, list] = {}
     for e in entries:
@@ -1098,18 +1148,17 @@ def render_sources(reg: SourceRegistry, total_articles: int = 0) -> str:
 def _render_sources_legacy(entries: list[dict], total_articles: int,
                            reg: "SourceRegistry") -> str:
     """Full source list with descriptions — kept for reference, not used in default render."""
-    # (label, color) 튜플 — 도메인팩 categories.yaml 에서 구성 (other_industrial 포함)
+    # (label, color) 튜플 — 도메인팩 categories.yaml 에서 일반적으로 구성(카테고리 id 하드코딩 X).
     CAT_NAMES = {
-        "industrial_robot":       (_CAT_FALLBACKS["industrial_robot"]["label_ko"], _CAT_FALLBACKS["industrial_robot"]["color"]),
-        "humanoid":               (_CAT_DEFS["humanoid"]["label_ko"],               _CAT_DEFS["humanoid"]["color"]),
-        "cobots":                 (_CAT_DEFS["cobots"]["label_ko"],                 _CAT_DEFS["cobots"]["color"]),
-        "manufacturing_platform": (_CAT_DEFS["manufacturing_platform"]["label_ko"], _CAT_DEFS["manufacturing_platform"]["color"]),
-        "amr":                    (_CAT_DEFS["amr"]["label_ko"],                    _CAT_DEFS["amr"]["color"]),
-        "funding":                (_CAT_DEFS["funding"]["label_ko"],                _CAT_DEFS["funding"]["color"]),
-        "other_industrial":       (_CAT_DEFS["other_industrial"]["label_ko"],       _CAT_DEFS["other_industrial"]["color"]),
-        "reference":              (_CAT_FALLBACKS["reference"]["label_ko"],         _CAT_FALLBACKS["reference"]["color"]),
-        "기타":                   (_CAT_FALLBACKS["default"]["label_ko"],           _CAT_FALLBACKS["reference"]["color"]),
+        cid: (_CAT_DEFS[cid]["label_ko"], _CAT_DEFS[cid]["color"])
+        for cid in _CAT_PACK.get("order", [])
+        if cid in _CAT_DEFS
     }
+    for _fid, _fdef in _CAT_FALLBACKS.items():
+        if isinstance(_fdef, dict) and _fdef.get("label_ko") and _fdef.get("color"):
+            CAT_NAMES.setdefault(_fid, (_fdef["label_ko"], _fdef["color"]))
+    _dflt = _CAT_FALLBACKS.get("default") or {}
+    CAT_NAMES.setdefault("기타", (_dflt.get("label_ko", "기타"), _dflt.get("color", "#9ca3af")))
 
     cat_groups: dict[str, list] = {}
     for e in entries:
@@ -1385,7 +1434,7 @@ def build_html(data: dict, date_str: str,
                 )
                 for h in items:
                     html += (f'  <div style="font-size:14px;padding:4px 0;color:#292524;">'
-                             f'{headline_inner_html(h)}</div>\n')
+                             f'{headline_inner_html(h, reg)}</div>\n')
                 html += '</div>\n'
 
         # 카테고리별 헤드라인은 '카테고리별 동향' 블록으로 이관(중복 제거).
@@ -1397,17 +1446,7 @@ def build_html(data: dict, date_str: str,
         if etc:
             html += '<div class="hl-group">\n  <div class="hl-group-hd">기타</div>\n  <ul>\n'
             for h in etc:
-                url = h.get("url", "") or h.get("source_url", "")
-                raw_sname = resolve_media_name(h.get("source", ""))
-                sname = esc(raw_sname)
-                lang_tag = '' if _is_korean_media(raw_sname, h.get("url", "") or h.get("source_url", "")) else ' <span style="color:#c4b5a4;font-size:11px;">(영문)</span>'
-                if url and sname:
-                    src = f' <a href="{esc(url)}" style="color:#a8a29e;font-size:12px;text-decoration:none;">/{sname}</a>'
-                elif sname:
-                    src = f' <span style="color:#a8a29e;font-size:12px;">/{sname}</span>'
-                else:
-                    src = ""
-                html += f'    <li>{esc(h.get("text", ""))}{lang_tag}{src}</li>\n'
+                html += f'    <li>{headline_inner_html(h, reg)}</li>\n'
             html += '  </ul>\n</div>\n'
 
     # 이번 호 등장 기업 — 경쟁사 동향 뒤, 인사이트 직전.
