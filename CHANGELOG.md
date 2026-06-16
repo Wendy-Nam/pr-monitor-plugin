@@ -15,6 +15,9 @@
 - **init venv 실패 안내 명시화**(`steps/init.py`): 조용히 끝내지 않고 원인+해결책
   (Python 설치)·세션은 계속 가능함을 stderr 로 안내.
 - **`.gitignore`**: 번들 도메인팩 예시를 `config/examples/` 로 추적 가능하게 예외 추가.
+- **dev 의존성 분리**: `pytest` 를 `requirements.txt`(런타임 venv 설치 대상)에서
+  빼 `requirements-dev.txt` 로. 플러그인 런타임 venv 가 테스트 전용 패키지를 더는
+  깔지 않는다. 테스트: `pip install -r requirements-dev.txt`.
 
 ### 정리
 - step 모듈(`pre`·`post`·`newsletter`·`pr_monitor`)의 박제된 `.sh` 원본 라인번호
