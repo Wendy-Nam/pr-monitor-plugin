@@ -222,3 +222,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/prmonitor_launch.py" <pre|post|pr|newsletter|init
 python3 -m prmonitor paths                 # 해석된 경로 확인
 ```
 참조 원본은 `ref-pr-monitor/`(분석용 클론, 패키지 미포함). 설계 상세는 [docs/specs/](docs/specs/) 참고.
+
+## 라이선스
+
+[MIT](LICENSE) © Wendy Nam
