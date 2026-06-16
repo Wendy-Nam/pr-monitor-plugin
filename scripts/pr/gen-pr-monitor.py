@@ -7,6 +7,7 @@
 
 주가/시황 기사 → 하단 별도 섹션.
 """
+from __future__ import annotations  # ponytail: PEP 604 unions on py3.9 venv
 
 import csv
 import json
@@ -48,7 +49,7 @@ from prmonitor import domainpack
 _PR_QUERIES = domainpack.load_pack("pr-queries")
 _TONE_LEXICON = domainpack.load_pack("tone-lexicon")
 _MEDIA = domainpack.load_pack("media")
-_BRANDING = domainpack.load_pack("branding")
+# 브랜딩은 domainpack.branding() 로 조회(자리표시→회사명 파생).
 
 # 기자명으로 오인되기 쉬운 매체·통신사명 (byline 추출 시 제외)
 MEDIA_NAMES = set(_MEDIA["outlet_names"])
@@ -186,7 +187,7 @@ def classify_and_summarize_batch(rows: list[dict], n_direct: int) -> tuple[dict[
     """
     if not rows or not CLAUDE_BIN:
         return {}, {}
-    org_name = _BRANDING["org_name"]
+    org_name = domainpack.branding("org_name")
     lines = [
         f"각 기사가 '{org_name}' 입장에서 긍정·중립·부정 중 무엇인지 판정해.",
         f"추가로 0~{n_direct - 1}번 기사(자사 직접 언급)는 PR 관점 한 줄 요약도 붙여."
@@ -379,11 +380,12 @@ def fetch_gnews_pr(hours: int) -> list[dict]:
                 except Exception:
                     pub_norm = pub[:10] if len(pub) >= 10 else pub
 
-            # 제목 또는 RSS snippet에 자사 키워드가 없는 기사는 skip.
-            # Google News가 관련 매체의 다른 기사를 cluster로 묶어 반환할 때 노이즈가 섞임.
+            # 제목·RSS 스니펫에 자사명이 보이는지 기록(스킵 X).
+            # 간접 언급은 제목·스니펫에 자사명이 없는 게 정상이라, 여기서 버리면
+            # 컨소시엄·압수수색 클러스터 등 진짜 간접이 증발한다. 자사 쿼리로 Google이
+            # 반환한 것이므로 일단 수집하고, 본문 fetch 후 본문 기준으로 노이즈를 거른다.
             combined = (title + " " + (entry.get("summary", "") or "")).lower()
-            if not any(kw.lower() in combined for kw in SELF_KW):
-                continue
+            alias_in_meta = any(kw.lower() in combined for kw in SELF_KW)
 
             seen_urls.add(link)
             results.append({
@@ -395,6 +397,7 @@ def fetch_gnews_pr(hours: int) -> list[dict]:
                 "full_text": "",
                 "rss_snippet": entry.get("summary", "") or "",
                 "_from_gnews": True,
+                "_alias_in_meta": alias_in_meta,
                 "is_domestic": q_cfg.get("domestic", True),
             })
 
@@ -582,15 +585,21 @@ def main():
         print(f"  블로그 제외: {dropped_blog}건 (티스토리 등 비매체)", file=sys.stderr)
 
     # ── 자사 무관 노이즈 제거 ──────────────────────────────────
-    # 제목·본문 어디에도 자사명 없는 기사 제거 (단, 본문 미추출은 보존: 확인 불가)
+    # 본문에 자사명 있으면 채택(간접 언급 복구). 본문 미추출이면 확인 불가 →
+    # 제목·스니펫에 자사명이 있었을 때만 보존(_alias_in_meta), 없으면 스팸으로 제거.
+    # (classified 풀 등 _alias_in_meta 키가 없는 항목은 이미 관련 확정 → 보존)
     def _mentions_self(a: dict) -> bool:
         blob = (a.get("title", "") + " " + (a.get("full_text") or "")).lower()
         return any(kw in blob for kw in SELF_KW)
+
+    def _keep(a: dict) -> bool:
+        if _mentions_self(a):
+            return True
+        if a.get("full_text"):
+            return False  # 본문 있는데 미언급 → 무관
+        return a.get("_alias_in_meta", True)  # 본문 미추출: 메타에 자사명 있을 때만 보존
     before_n = len(merged)
-    merged = [
-        a for a in merged
-        if _mentions_self(a) or not (a.get("full_text") or "")  # 본문 있는데 미언급 → 제거
-    ]
+    merged = [a for a in merged if _keep(a)]
     dropped_noise = before_n - len(merged)
     if dropped_noise:
         print(f"  노이즈 제거: 자사 무관 {dropped_noise}건 제외", file=sys.stderr)
@@ -667,6 +676,12 @@ def main():
         tone = detect_tone(title, body)
         evidence = extract_evidence(title, body)
         summary = extract_summary(body, evidence)
+        # ponytail: 본문 추출 실패 시 GNews RSS 스니펫(이미 보유)을 evidence 폴백.
+        # 관련 있는데 본문 미추출인 건의 '언급 위치'를 무료로 복구. 본문 fetch는 그래도 부족할 때.
+        if not evidence:
+            snippet = re.sub(r"<[^>]+>", " ", a.get("rss_snippet", "") or "").strip()
+            if snippet:
+                evidence = extract_evidence(title, snippet) or snippet[:160]
         title_lower = title.lower()
         stock_in_title = any(k in title_lower for k in STOCK_KW)
         is_direct = any(kw in title_lower for kw in SELF_KW) and not stock_in_title
@@ -944,7 +959,7 @@ def main():
 
         # LLM 프롬프트: 편집 기사 제목+언급위치 + 주가 주요 제목
         prompt_lines = [
-            f"당신은 {_BRANDING['org_name']} 마케팅팀 PR 담당자입니다.",
+            f"당신은 {domainpack.branding('org_name')} 마케팅팀 PR 담당자입니다.",
             f"오늘({TODAY}) 자사 보도 모니터링 결과를 바탕으로 '오늘의 PR 동향 브리핑'을 작성하세요.",
             "",
             "작성 규칙:",
@@ -1145,7 +1160,7 @@ def main():
         'color: #1c1917; line-height: 1.7; background: #fff; }</style>'
         '</head><body>\n'
         '<div style="font-size:11px;font-weight:700;color:#78716c;'
-        f'letter-spacing:3px;margin-bottom:4px;">{_BRANDING["html_header_pr"]}</div>\n'
+        f'letter-spacing:3px;margin-bottom:4px;">{domainpack.branding("html_header_pr")}</div>\n'
         '<h1 style="font-size:22px;font-weight:800;margin:0 0 4px;">자사 보도 모니터링</h1>\n'
         f'<div style="font-size:13px;color:#78716c;margin-bottom:20px;">'
         f'{TODAY} · 최근 {HOURS}h</div>\n'
@@ -1156,7 +1171,7 @@ def main():
         f'{stock_section_html}'
         '<div style="margin-top:30px;padding-top:12px;border-top:1px solid #e7e5e4;'
         'font-size:11px;color:#a8a29e;">'
-        f'{_BRANDING["html_footer"]}'
+        f'{domainpack.branding("html_footer")}'
         f'<div style="margin-top:3px;">자동생성 {generated} KST</div>'
         f'{prev_run_html}'
         '</div>\n'

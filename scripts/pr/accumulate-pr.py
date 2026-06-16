@@ -12,6 +12,7 @@ data/output/pr/pr-monthly-YYYY-MM.csv 로 합친다.
 중복 제거: 같은 URL은 1건만 유지 (최신 날짜 기준).
 인코딩: UTF-8 BOM (엑셀 한국어 호환).
 """
+from __future__ import annotations  # ponytail: PEP 604 unions on py3.9 venv
 
 import csv
 import sys

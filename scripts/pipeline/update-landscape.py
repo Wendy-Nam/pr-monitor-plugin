@@ -43,7 +43,10 @@ CAT_LABELS = {
 
 
 def load_landscape() -> dict:
-    return yaml.safe_load(LANDSCAPE.read_text(encoding="utf-8"))
+    # 신규 도메인은 아직 landscape 파일이 없다 → 빈 dict 로 시작(첫 실행 견고성).
+    if not LANDSCAPE.is_file():
+        return {}
+    return yaml.safe_load(LANDSCAPE.read_text(encoding="utf-8")) or {}
 
 
 def save_landscape(data: dict) -> None:

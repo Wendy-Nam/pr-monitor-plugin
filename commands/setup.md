@@ -56,13 +56,32 @@ Azure 인증: ✅ 연결됨 | ❌ 미설정 (→ "Azure 키" 로 설정)
 
 ## INSTALL — 도메인팩 설치 마법사
 
-`config/company-profile.yaml` 이 없거나 사용자가 설치를 요청하면 실행. 먼저 두 갈래를 묻는다:
+`config/company-profile.yaml` 이 없거나 사용자가 설치를 요청하면 실행.
+
+> [!CAUTION]
+> **기존 파일 보호 (어떤 갈래든 쓰기 전에 먼저).** INSTALL·setup-bootstrap 은 절대
+> 기존 도메인팩을 말없이 덮어쓰지 않는다. 쓰기 시작 전에:
+> 1. `config/*.yaml` 을 스캔한다. 번들 시드 기본값(예시 도메인=콘토소)과 사용자 실데이터를
+>    구분: `company-profile.yaml` 의 `company.name` 이 예시값이 아니면 **사용자 도메인팩으로 간주**.
+> 2. 사용자 실데이터가 있으면 STATUS 를 먼저 보여주고 "이미 [name] 도메인팩이 설정돼 있습니다.
+>    새로 만들면 기존 설정을 잃습니다" 라고 알린 뒤 명시적으로 묻는다:
+>    **(a) 백업 후 재설정 (b) 일부만 보강 (c) 취소**. 기본값은 **취소**.
+> 3. 진행 승인 시, 덮어쓰기 전 `config/` 를 `config.bak-$(date +%F-%H%M%S)/` 로 복사(삭제 아님).
+> 4. 개별 파일 단위로도 `Write` 직전 대상이 이미 존재하면, 그 파일이 위 백업에 포함됐는지
+>    확인하고 진행한다. 백업 없이 사용자 파일을 덮는 일은 없다.
+
+먼저 세 갈래를 묻는다:
 
 **A) 기존 도메인팩으로 시작 (번들 제공 예시 도메인팩 = 도메인팩 1호)**
 → `init` 이 `config-templates/` 의 팩을 `config/` 로 시드한다(이미 대부분 됨). SECRETS + RECIPIENTS 만 안내.
 
-**B) 새 조직 설정 (인터뷰)**
-→ 아래를 한 번에 하나씩 묻고, 답으로 도메인팩 YAML 을 `${CLAUDE_PROJECT_DIR}/config/` 에 생성한다. 각 파일 스키마는 `config-templates/<name>.yaml` 을 본보기로 따른다.
+**B) 새 조직 — 자동 초안 (권장)**
+→ "회사명 + 산업"(+선택 경쟁사 힌트)만 받아 **`setup-bootstrap` 서브에이전트(Agent 툴)** 를 호출한다. 에이전트가 웹 리서치로 경쟁사·카테고리·키워드·소스를 조사해 도메인팩 YAML 초안을 `${CLAUDE_PROJECT_DIR}/config/` 에 작성하고, **요약을 제시해 사람 승인을 받는다**(완전 자동 아님). 인터뷰의 지루함 없이 초안 위에서 손보는 방식.
+  - 비용: 조직 생애 1회. 강한 모델 사용 정당(드물고 고가치).
+  - 한계: `prompt-examples.yaml`(인사이트 few-shot)은 자동 생성 안 됨 → 플레이스홀더 + 큐레이션 안내.
+
+**C) 새 조직 — 수동 인터뷰**
+→ 아래를 한 번에 하나씩 묻고, 답으로 도메인팩 YAML 을 `${CLAUDE_PROJECT_DIR}/config/` 에 생성한다. 각 파일 스키마는 `config-templates/<name>.yaml` 을 본보기로 따른다. (B 를 못 쓰거나 사용자가 직접 정의를 원할 때)
 
 인터뷰 항목 → 생성 파일:
 
@@ -73,6 +92,8 @@ Azure 인증: ✅ 연결됨 | ❌ 미설정 (→ "Azure 키" 로 설정)
 5. **언어·톤** (출력 언어·문장길이·금지어) → `style.yaml`
 6. **분류 튜닝** (위험 키워드·일반어·이해관계자 가중) → `classify-tuning.yaml`
 7. **PR 검색·톤 렉시콘·매체명** → `pr-queries.yaml`, `tone-lexicon.yaml`, `media.yaml`
+   - 자사명 변형을 모두 묻는다: 한글·영문 공식명, **띄어쓰기/공백 유무 변형**, 로마자·약칭·
+     구 사명·티커. 영문 변형은 **소문자판도 함께** `self_aliases` 에 넣는다(매칭 대소문자 이슈).
 8. **발송 대상** (그룹별 수신자) → `delivery.yaml` 의 `recipients`(시크릿 아님)
 
 생성 후 각 파일을 `python3 -c "import yaml; yaml.safe_load(open(...))"` 로 검증한다.
