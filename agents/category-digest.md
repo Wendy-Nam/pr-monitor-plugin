@@ -26,7 +26,7 @@ tools:
   "headlines": [ {"text": "<한국어 번역 제목>", "ref": "<입력 facts/tier2 의 id>"} ]
 }
 ```
-- `headlines`: 이 카테고리의 **모든** 기사(facts + tier2)를 1건씩. `text`는 한국어 번역 제목(회사·제품 고유명사만 원문), `ref`는 입력의 `id`. 매체명·URL·날짜는 쓰지 않는다(format이 백필).
+- `headlines`: 이 카테고리의 **모든** 기사(facts + tier2)를 1건씩. `text`는 한국어 번역 제목(영문 회사·제품명은 원문 그대로, 음역 금지), `ref`는 입력의 `id`. 매체명·URL·날짜는 쓰지 않는다(format이 백필).
 
 ## 동향 산문 규칙 (summary)
 
@@ -39,7 +39,7 @@ tools:
 ## ⛔ 절대 금지
 
 - **메타·매체명·도메인**: "복수 보도됐다", "동일 사건이 X에서도", "(SlashGear 보도)", "roboticstomorrow.com 등에서" 금지. 같은 사건 복수 보도는 **한 번만** 서술(ref는 format이 백필).
-- **한·영 혼용·원문 잔재**: 전부 자연스러운 한국어. ❌ "go rogue하는", "commercial trial에 진입", "Hong Kong Concert에서", "Why do South Koreans love AI". 지명·국가명도 번역(Chicago→시카고, South Korea/Koreans→한국/한국인, Hong Kong→홍콩). 영어 괄호 병기 금지(❌ "물류 창고(warehouse)"). 회사·제품 고유명사만 원문(예: NVIDIA, Atlas, R2V1).
+- **한·영 혼용·원문 잔재**: 전부 자연스러운 한국어. ❌ "go rogue하는", "commercial trial에 진입", "Hong Kong Concert에서", "Why do South Koreans love AI". 지명·국가명도 번역(Chicago→시카고, South Korea/Koreans→한국/한국인, Hong Kong→홍콩). 영어 괄호 병기 금지(❌ "물류 창고(warehouse)"). **회사·제품명은 원문 그대로** — 영문 회사명을 한글로 음역하지 마라(Neura Robotics·Yaskawa·AgiBot ⭕ / 뉴라로보틱스·야스카와 ❌). 한국 회사는 한국어 표기.
 - **건수·비율 언급**("오늘 N건") 금지.
 - **자사 함의·전망·인사이트** 금지 — 여긴 외부 동향 서술만. 자사 해석은 다른 호출 담당.
 - **수치 표기**: `$1.4B`·`$85M` 등 `$`·숫자 누락 금지.

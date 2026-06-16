@@ -1103,12 +1103,10 @@ def render_category_summary_blocks(category_summary: list[dict],
                 if not _is_self_mention(a.get("title", "") or a.get("text", ""),
                                         a.get("summary", ""))]
 
-        # 경쟁사 그룹 + 타 카테고리 헤드라인 — 카테고리 서술이 다른 그룹 기사를
-        # 인용할 때 번호 누락 방지. 매칭될 때만 부착(미매칭은 버림).
-        extra = [h for g, items in headlines_by_group.items()
-                 if g != cat_id for h in items
-                 if not _is_self_mention(h.get("title", "") or h.get("text", ""),
-                                         h.get("summary", ""))]
+        # 타 카테고리 헤드라인을 후보로 넣지 않는다. 병렬 합성에서 각 카테고리 호출은
+        # 자기 기사만 서술하므로, 다른 카테고리 기사를 후보로 두면 토큰 우연 매칭으로
+        # 무관 기사 ref 가 오귀속된다(예: humanoid 기사가 amr 문장에). 자기 카테고리만.
+        extra: list = []
 
         cat_label = f"카테고리[{cat.get('category_name', cat_id)}]"
         # dump_unmatched=True: 산문에 안 엮인 수집 기사를 "이 밖에 ~ 등도 주목됐다 [n]"
