@@ -15,9 +15,13 @@ format.py 실행 전에 호출해 갭을 미리 잡는다.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from prmonitor import paths
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 PROCESSED = PROJECT_ROOT / "data" / "processed"
@@ -53,7 +57,7 @@ def _covered(headline_text: str, summary_text: str) -> bool:
 def main() -> int:
     date_str = sys.argv[1] if len(sys.argv) > 1 else __import__("datetime").date.today().isoformat()
 
-    briefing_path = PROCESSED / f"newsletter-briefing-{date_str}.json"
+    briefing_path = paths.BRIEFING_DIR / f"newsletter-briefing-{date_str}.json"
     if not briefing_path.exists():
         print(f"ERROR: {briefing_path.name} 없음", file=sys.stderr)
         return 1

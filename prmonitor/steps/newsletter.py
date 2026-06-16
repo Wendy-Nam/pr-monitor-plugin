@@ -28,7 +28,7 @@ Deviations from the .sh, mandated by the architecture contract:
     spec/input/output references are re-anchored:
       spec    → paths.AGENTS_DIR / "insight-synthesizer.md"   (was .claude/agents/…)
       input   → paths.PROCESSED_DIR / synthesis-context-{date}.json
-      output  → paths.PROCESSED_DIR / newsletter-briefing-{date}.json
+      output  → paths.BRIEFING_DIR / newsletter-briefing-{date}.json
       precheck formatter → paths.SKILLS_DIR / briefing-formatter / format.py
   - Cost parsing reuses the exec-log JSON parser (last type=result event's
     total_cost_usd) instead of `grep -o '"cost_usd"' | awk` — the .sh's own
@@ -65,7 +65,7 @@ def _exec_log(*, date: str, run_id: str, started: str, status: int,
     the claude stream-json log, and both output artifacts. Never raises — a
     logging failure only warns, exactly like the bash `|| warn` (.sh L60).
     """
-    briefing = paths.PROCESSED_DIR / f"newsletter-briefing-{date}.json"
+    briefing = paths.BRIEFING_DIR / f"newsletter-briefing-{date}.json"
     html = paths.NEWSLETTER_OUTPUT_DIR / f"newsletter-report-{date}.html"
     argv = [
         str(paths.venv_python()),
@@ -134,7 +134,7 @@ def _synth_prompt(date: str) -> str:
     """
     spec = paths.AGENTS_DIR / "insight-synthesizer.md"
     synthesis_ctx = paths.PROCESSED_DIR / f"synthesis-context-{date}.json"
-    briefing = paths.PROCESSED_DIR / f"newsletter-briefing-{date}.json"
+    briefing = paths.BRIEFING_DIR / f"newsletter-briefing-{date}.json"
     blind_spots = paths.SELF_CONTEXT_DIR / "blind-spots.md"
     formatter = paths.SKILLS_DIR / "briefing-formatter" / "format.py"
     precheck_html = f"/tmp/precheck-newsletter-{date}.html"
@@ -255,17 +255,29 @@ def run(args) -> int:
     # CLI 기본값(Opus)으로 떨어져 ~5배 비싸진다. PRM_SYNTH_MODEL 로 1회 override 가능.
     synth_model = _enforce_cheap_model(
         os.environ.get("PRM_SYNTH_MODEL") or _synth_model_from_spec())
+    # agent 모드 기본 extended thinking 이 30분 폭주를 일으킴 — effort 로 캡한다.
+    # 입력(synthesis-context)이 작아 low 로도 Sonnet 교차합성 품질은 유지된다.
+    synth_effort = os.environ.get("PRM_SYNTH_EFFORT", "low")
     claude_argv = [
         claude_bin, "-p", prompt,
         "--model", synth_model,
+        "--effort", synth_effort,
         "--allowedTools", "Read,Write,Edit,Bash",
         "--output-format", "stream-json",
         "--verbose",
     ]
+    # 진짜 병목은 headless extended thinking — rate-limit 시 6900토큰이 9분으로 불어난다.
+    # 합성은 추론이 아니라 스펙대로의 구조적 생성이라 thinking 이 품질을 못 사준다.
+    # MAX_THINKING_TOKENS=0 으로 완전 비활성(중간값은 --effort 에 밀려 무시됨). 품질은
+    # 프롬프트·self-context 데이터로 잡는다. PRM_SYNTH_THINKING 로 1회 override 가능.
+    # 부모 세션의 CLAUDE_EFFORT(=high 등)가 새지 않도록 서브프로세스 env 를 명시 구성.
+    synth_env = dict(os.environ)
+    synth_env["MAX_THINKING_TOKENS"] = os.environ.get("PRM_SYNTH_THINKING", "0")
+    synth_env.pop("CLAUDE_EFFORT", None)  # --effort 플래그가 정본
     claude_rc = 0
     try:
         with open(output_log, "w", encoding="utf-8") as logf:
-            proc = subprocess.run(claude_argv, stdout=logf,
+            proc = subprocess.run(claude_argv, stdout=logf, env=synth_env,
                                   stderr=subprocess.STDOUT, check=False)
         claude_rc = proc.returncode
     except OSError as e:
@@ -278,7 +290,7 @@ def run(args) -> int:
     claude_duration = int(time.monotonic() - claude_start)
 
     # require_file on briefing — synthesis-failure guard (.sh L125-126).
-    briefing_json = paths.PROCESSED_DIR / f"newsletter-briefing-{date}.json"
+    briefing_json = paths.BRIEFING_DIR / f"newsletter-briefing-{date}.json"
     try:
         require_file(
             briefing_json,

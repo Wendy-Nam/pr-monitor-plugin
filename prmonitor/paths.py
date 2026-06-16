@@ -62,6 +62,10 @@ PROCESSED_DIR = PLUGIN_DATA / "data" / "processed"
 CACHE_DIR = PLUGIN_DATA / "data" / "cache"
 VENV_DIR = PLUGIN_DATA / ".venv"
 
+# ── briefing JSON (synthesis output) — workspace so claude -p subprocess can write ──
+# PROCESSED_DIR is inside .claude/ which claude -p treats as a sensitive path.
+BRIEFING_DIR = PROJECT_DIR / "data" / "processed"
+
 
 def venv_python() -> Path:
     """Cross-platform path to the venv interpreter (Windows: Scripts\\python.exe)."""
@@ -80,7 +84,7 @@ def ensure_dirs() -> None:
     """Create the writable dir skeleton (idempotent). Never touches PLUGIN_ROOT."""
     for d in (
         CONFIG_DIR, SELF_CONTEXT_DIR, NEWSLETTER_OUTPUT_DIR, PR_OUTPUT_DIR,
-        LOGS_DIR, RAW_DIR, PROCESSED_DIR, CACHE_DIR,
+        LOGS_DIR, RAW_DIR, PROCESSED_DIR, CACHE_DIR, BRIEFING_DIR,
     ):
         d.mkdir(parents=True, exist_ok=True)
 

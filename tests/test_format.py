@@ -152,7 +152,7 @@ class TestInsightFactTitle:
             def get_num(self, url): return None
         out = fmt.attach_inline_refs(
             "삼성전자가 투자했다.\n\nLG는 훈련소를 짓는다.", [], _FakeReg())
-        assert 'margin:6px 0 0;' in out
+        assert 'margin:16px 0 0;' in out
         assert "<br><br>" not in out
 
     def test_stub_head_keeps_full_title(self):

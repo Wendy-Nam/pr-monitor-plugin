@@ -227,22 +227,22 @@ class TestMatchCompetitors:
 
 class TestSamsungBoost:
     def test_samsung_robot_investment_boosted(self):
-        from scripts.pipeline.classify import samsung_boost
+        from scripts.pipeline.classify import stakeholder_boost
 
         # 삼성의 타 로봇사 투자 = 자사(최대주주 관계) 직접 이해관계
-        assert samsung_boost("[단독]삼성전자, 美 산업용 로봇 스타트업 '스탠다드봇' 투자") == 2
-        assert samsung_boost("Samsung invests in Standard Bots") == 2
+        assert stakeholder_boost("[단독]삼성전자, 美 산업용 로봇 스타트업 '스탠다드봇' 투자") == 2
+        assert stakeholder_boost("Samsung invests in Standard Bots") == 2
 
     def test_samsung_appliance_not_boosted(self):
-        from scripts.pipeline.classify import samsung_boost
+        from scripts.pipeline.classify import stakeholder_boost
 
-        assert samsung_boost("삼성전자, 로봇청소기 '비스포크 AI 스팀' 출시") == 0
-        assert samsung_boost("삼성전자, 갤럭시 신제품 공개") == 0
+        assert stakeholder_boost("삼성전자, 로봇청소기 '비스포크 AI 스팀' 출시") == 0
+        assert stakeholder_boost("삼성전자, 갤럭시 신제품 공개") == 0
 
     def test_no_samsung_no_boost(self):
-        from scripts.pipeline.classify import samsung_boost
+        from scripts.pipeline.classify import stakeholder_boost
 
-        assert samsung_boost("두산로보틱스, 협동로봇 신제품") == 0
+        assert stakeholder_boost("두산로보틱스, 협동로봇 신제품") == 0
 
 
 class TestCalcRelevance:

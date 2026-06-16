@@ -150,7 +150,7 @@ def run(args) -> int:
     hold_reasons: list[str] = []
 
     # 산출물 경로 (.sh:49-50). 3-root: processed→PLUGIN_DATA, output→PROJECT_DIR.
-    briefing = paths.PROCESSED_DIR / f"newsletter-briefing-{date_str}.json"
+    briefing = paths.BRIEFING_DIR / f"newsletter-briefing-{date_str}.json"
     html_out = paths.NEWSLETTER_OUTPUT_DIR / f"newsletter-report-{date_str}.html"
 
     status = 1  # trap EXIT는 $? 를 기록 — 성공 경로에서 0으로 설정 (.sh:41)

@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.2.0 — Haiku 기사 보강 + 합성 품질
+
+키워드 점수만으로는 편집 중요도를 못 잡던 문제(묘기 기사가 실속 기사를 tier1에서
+밀어냄)를 Haiku 보강 단계로 해결. 합성 인사이트의 억지 연결·할일형 함의·관찰 오염도
+스펙으로 차단. 모든 변경은 **엔진(도메인 중립)** — 도메인팩만 구성하면 어느 산업이든
+동일 품질. 단위 테스트 111개 통과.
+
+### 추가
+- **Step 5b 기사 보강** (`scripts/pipeline/enrich-articles.py`): classify→aggregate
+  사이에서 Haiku 배치 1콜로 기사당 `{importance 1~5, 1줄요약}` 생성. 루브릭은
+  도메인 중립 — 산업명은 `company-profile.company.industry`, 요약 언어는 `style.language`
+  에서 주입. 도메인팩 `classify-tuning.importance_hint`(선택)로 산업별 예시 보강 가능.
+  비치명적(실패 시 키워드 점수 폴백)·idempotent.
+- `aggregate.tier_score()`: Haiku importance 우선, 없으면 relevance_score 폴백.
+- 보강 기사 단위 테스트(`TestImportanceTiering`) + ko_summary override 테스트.
+
+### 변경
+- **tier 배정**: 보강 기사는 `importance>=4` 만 tier1. 경쟁사명 자동승격(묘기 기사
+  tier1 유입 원인) 제거. 키워드 점수는 폴백·카테고리 분류·boost/exclude 용으로 유지.
+- **summary**: enrich `ko_summary` 우선 사용 — 추출 실패/영문 summary 문제 해결,
+  tier2 헤드라인에도 한국어 내용 제공.
+- **합성 산출 경로**: `newsletter-briefing-*.json`·enrich 출력을 워크스페이스
+  (`paths.BRIEFING_DIR`)로 이동 — `claude -p` 가 `.claude/` 캐시를 민감파일로 분류해
+  Write 를 차단하던 문제 해결.
+- **headless thinking 비활성** (`MAX_THINKING_TOKENS=0`): 합성은 구조적 생성이라
+  extended thinking 이 품질을 못 사주면서 rate-limit 시 9분 폭주를 유발 → 제거(4분).
+- **insight-synthesizer 스펙**: ①관찰은 외부 기사만(self-context 금지) ②한 인사이트
+  = 하나의 공통 줄기(시간적 우연 묶기 금지) ③할일형 함의("확인 대상" 등) 금지 →
+  판단으로 종결 ④tier2 전 기사를 headlines 에 1줄로 포함.
+- **format sweep**(`이 밖에`): 건수 대신 한국어 제목 표시(영문·짧은 조각 필터).
+
+### 수정
+- stale 테스트 정리: `samsung_boost`→`stakeholder_boost` 이름 변경 반영,
+  format 문단 마진 상수(16px) 테스트 동기화.
+
 ## 0.1.0 — Plugin + engine/domain-pack refactor
 
 `pr-monitor`(단일 워크스페이스 뉴스 도구)를 **공식 Claude Code 플러그인** +

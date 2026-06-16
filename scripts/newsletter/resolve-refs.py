@@ -102,7 +102,7 @@ def title_fallback(entry: dict, articles: list) -> dict | None:
 def main():
     date_str = sys.argv[1] if len(sys.argv) > 1 else __import__("datetime").date.today().isoformat()
 
-    briefing_path = PROCESSED / f"newsletter-briefing-{date_str}.json"
+    briefing_path = paths.BRIEFING_DIR / f"newsletter-briefing-{date_str}.json"
     facts_path = PROCESSED / f"newsletter-facts-{date_str}.json"
     if not briefing_path.exists() or not facts_path.exists():
         print(f"ERROR: {briefing_path.name} 또는 {facts_path.name} 없음")
