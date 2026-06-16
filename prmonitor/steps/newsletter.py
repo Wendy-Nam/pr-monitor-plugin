@@ -28,7 +28,7 @@ Deviations from the .sh, mandated by the architecture contract:
     spec/input/output references are re-anchored:
       spec    → paths.AGENTS_DIR / "insight-synthesizer.md"   (was .claude/agents/…)
       input   → paths.PROCESSED_DIR / synthesis-context-{date}.json
-      output  → paths.PROCESSED_DIR / newsletter-briefing-{date}.json
+      output  → paths.BRIEFING_DIR / newsletter-briefing-{date}.json
       precheck formatter → paths.SKILLS_DIR / briefing-formatter / format.py
   - Cost parsing reuses the exec-log JSON parser (last type=result event's
     total_cost_usd) instead of `grep -o '"cost_usd"' | awk` — the .sh's own
@@ -44,6 +44,7 @@ args.no_email mirror the bash flags when present.
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -64,7 +65,7 @@ def _exec_log(*, date: str, run_id: str, started: str, status: int,
     the claude stream-json log, and both output artifacts. Never raises — a
     logging failure only warns, exactly like the bash `|| warn` (.sh L60).
     """
-    briefing = paths.PROCESSED_DIR / f"newsletter-briefing-{date}.json"
+    briefing = paths.BRIEFING_DIR / f"newsletter-briefing-{date}.json"
     html = paths.NEWSLETTER_OUTPUT_DIR / f"newsletter-report-{date}.html"
     argv = [
         str(paths.venv_python()),
@@ -87,6 +88,43 @@ def _exec_log(*, date: str, run_id: str, started: str, status: int,
         warn("실행 로그 기록 실패")
 
 
+def _synth_model_from_spec() -> str:
+    """insight-synthesizer.md frontmatter 의 `model:` 값. 없으면 sonnet 기본.
+
+    raw `claude -p` 는 frontmatter 를 자동 적용하지 않으므로 여기서 읽어 --model 로 넘긴다.
+    """
+    default = "claude-sonnet-4-6"
+    val = default
+    try:
+        spec = (paths.AGENTS_DIR / "insight-synthesizer.md").read_text(encoding="utf-8")
+        in_fm = False
+        for line in spec.splitlines():
+            if line.strip() == "---":
+                if in_fm:
+                    break
+                in_fm = True
+                continue
+            if in_fm and line.lower().startswith("model:"):
+                v = line.split(":", 1)[1].strip().strip('"\'')
+                if v:
+                    val = v
+                break
+    except OSError:
+        pass
+    return val
+
+
+def _enforce_cheap_model(model: str) -> str:
+    """합성 모델을 Sonnet/Haiku 로 강제. Opus 는 비용 과다라 절대 쓰지 않는다.
+
+    frontmatter·PRM_SYNTH_MODEL 무엇이 와도 opus 계열이면 sonnet 으로 강등한다.
+    """
+    if "opus" in (model or "").lower():
+        warn(f"합성 모델 '{model}' → 비용 보호로 claude-sonnet-4-6 강등")
+        return "claude-sonnet-4-6"
+    return model or "claude-sonnet-4-6"
+
+
 def _synth_prompt(date: str) -> str:
     """The Step-7 synthesis prompt — ported from the heredoc (.sh L86-104).
 
@@ -96,7 +134,7 @@ def _synth_prompt(date: str) -> str:
     """
     spec = paths.AGENTS_DIR / "insight-synthesizer.md"
     synthesis_ctx = paths.PROCESSED_DIR / f"synthesis-context-{date}.json"
-    briefing = paths.PROCESSED_DIR / f"newsletter-briefing-{date}.json"
+    briefing = paths.BRIEFING_DIR / f"newsletter-briefing-{date}.json"
     blind_spots = paths.SELF_CONTEXT_DIR / "blind-spots.md"
     formatter = paths.SKILLS_DIR / "briefing-formatter" / "format.py"
     precheck_html = f"/tmp/precheck-newsletter-{date}.html"
@@ -212,8 +250,18 @@ def run(args) -> int:
     # Claude Code 2.1+: --output-format stream-json 은 --verbose 필수 (.sh L111-119).
     # 합성만 성공하면 briefing JSON 이 생기므로, claude 종료코드와 무관하게
     # 이후 briefing 존재 여부로 판단한다 (.sh L112-120).
+    # 합성 모델: insight-synthesizer.md frontmatter 의 선언값을 따른다(없으면 sonnet).
+    # raw `claude -p` 는 agent frontmatter 를 안 읽으므로 여기서 명시하지 않으면
+    # CLI 기본값(Opus)으로 떨어져 ~5배 비싸진다. PRM_SYNTH_MODEL 로 1회 override 가능.
+    synth_model = _enforce_cheap_model(
+        os.environ.get("PRM_SYNTH_MODEL") or _synth_model_from_spec())
+    # agent 모드 기본 extended thinking 이 30분 폭주를 일으킴 — effort 로 캡한다.
+    # 입력(synthesis-context)이 작아 low 로도 Sonnet 교차합성 품질은 유지된다.
+    synth_effort = os.environ.get("PRM_SYNTH_EFFORT", "low")
     claude_argv = [
         claude_bin, "-p", prompt,
+        "--model", synth_model,
+        "--effort", synth_effort,
         "--allowedTools", "Read,Write,Edit,Bash",
         "--output-format", "stream-json",
         "--verbose",
@@ -234,7 +282,7 @@ def run(args) -> int:
     claude_duration = int(time.monotonic() - claude_start)
 
     # require_file on briefing — synthesis-failure guard (.sh L125-126).
-    briefing_json = paths.PROCESSED_DIR / f"newsletter-briefing-{date}.json"
+    briefing_json = paths.BRIEFING_DIR / f"newsletter-briefing-{date}.json"
     try:
         require_file(
             briefing_json,
@@ -246,7 +294,6 @@ def run(args) -> int:
     # 실행 로그는 이 모듈이 전담 — post 자체 기록 비활성 (.sh L131-132).
     # The env flag is the cross-process contract post.run honors when it shells
     # exec-log.py; passed through args too for the in-process call.
-    import os
     os.environ["PR_MONITOR_EXEC_LOGGED"] = "1"
 
     from . import post  # lazy: sibling module is a separate port

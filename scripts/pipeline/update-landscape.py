@@ -199,7 +199,7 @@ def main():
         return
 
     date_str = args[0] if args else Date.today().isoformat()
-    briefing_path = paths.PROCESSED_DIR / f"newsletter-briefing-{date_str}.json"  # was PROJECT_ROOT/data/processed (ref line 198)
+    briefing_path = paths.BRIEFING_DIR / f"newsletter-briefing-{date_str}.json"
     if not briefing_path.exists():
         print(f"No briefing for {date_str}, landscape not modified")
         return

@@ -15,14 +15,19 @@ format.py 실행 전에 호출해 갭을 미리 잡는다.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from prmonitor import paths
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 PROCESSED = PROJECT_ROOT / "data" / "processed"
 
-CAT_IDS = {"humanoid", "cobots", "amr", "manufacturing_platform", "other_industrial", "funding"}
+# 서술 의무가 있는 카테고리 id 집합은 실행 시점의 synthesis-context / briefing 에서
+# 도출한다(아래 main). 카테고리 id 를 하드코딩하지 않는다 — 도메인팩마다 다르다.
 
 
 def _normalize(text: str) -> str:
@@ -52,7 +57,7 @@ def _covered(headline_text: str, summary_text: str) -> bool:
 def main() -> int:
     date_str = sys.argv[1] if len(sys.argv) > 1 else __import__("datetime").date.today().isoformat()
 
-    briefing_path = PROCESSED / f"newsletter-briefing-{date_str}.json"
+    briefing_path = paths.BRIEFING_DIR / f"newsletter-briefing-{date_str}.json"
     if not briefing_path.exists():
         print(f"ERROR: {briefing_path.name} 없음", file=sys.stderr)
         return 1
@@ -68,24 +73,31 @@ def main() -> int:
     # 검사 대상 = synthesis-context 의 카테고리 전체 (tier1 facts + tier2 헤드라인).
     # 카테고리 요약은 전부 산문이므로, 전 기사가 어떤 카테고리 요약에서든 서술돼야 한다.
     candidates: list[tuple[str, str]] = []  # (category_id, title)
+    cat_ids: set[str] = set()  # 서술 의무가 있는 카테고리 id (이번 실행 기준 도출)
     ctx_path = PROCESSED / f"synthesis-context-{date_str}.json"
     if ctx_path.exists():
         ctx = json.loads(ctx_path.read_text(encoding="utf-8"))
         for cat in ctx.get("categories", []):
             cid = cat.get("category_id", "")
+            cat_ids.add(cid)
             for f in cat.get("facts", []):
                 candidates.append((cid, f.get("title", "")))
         for t2 in ctx.get("tier2_headlines", []):
-            candidates.append((t2.get("category", ""), t2.get("title", "")))
+            cid = t2.get("category", "")
+            cat_ids.add(cid)
+            candidates.append((cid, t2.get("title", "")))
     else:
         for h in briefing.get("headlines", []):
             candidates.append((h.get("group", "기타"), h.get("text", "")))
+    # 폴백/보강: briefing 의 category_summary 가 다루는 카테고리도 의무 대상.
+    cat_ids.update(c.get("category_id", "") for c in briefing.get("category_summary", []))
+    cat_ids.discard("")
 
     all_summaries = " ".join(summary_map.values())
     gaps: list[dict] = []
     seen: set[str] = set()
     for group, text in candidates:
-        if group not in CAT_IDS or not text:
+        if group not in cat_ids or not text:
             continue  # 경쟁사 그룹·미분류는 별도 섹션 — 서술 의무 없음
         key = _normalize(text)[:25]
         if key in seen:
