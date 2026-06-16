@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0 — 이메일 발송 채널 추상화 (Azure 비종속)
+
+이메일이 Microsoft Graph(Azure)에만 묶여 있어 Gmail·SES·사내 메일을 쓰는 조직은 발송을
+못 쓰던 제약을 해소. `delivery.yaml` 의 `email.provider` 로 채널을 고른다.
+
+### 추가
+- **표준 SMTP provider**(`send-email.py`): `provider: smtp` 면 stdlib `smtplib` 로 발송 —
+  Gmail·O365·AWS SES·사내 메일 등 표준 SMTP 서버 지원, **새 의존성 없음**. `email.smtp`
+  블록(host·port·user·password·use_ssl), 시크릿은 env(userConfig→키체인) 우선.
+- `send_mail`·`--validate` 가 provider 로 분기(`microsoft_graph` | `smtp`). 미지정 시
+  `microsoft_graph` 기본 — **기존 설정 하위호환**.
+- provider 라우팅·SMTP 파싱·에러 경로 테스트(`test_email_provider`) 5건.
+
 ## 0.4.0 — 재현율 우선 분류 게이트 + 이중언어 키워드
 
 좁은 도메인팩 키워드 탓에 **진짜 업계 기사가 점수 미달로 조용히 탈락**하던 문제 해결

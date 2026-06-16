@@ -27,7 +27,10 @@ import argparse
 import base64
 import json
 import os
+import smtplib
+import ssl
 import sys
+from email.message import EmailMessage
 from pathlib import Path
 
 try:
@@ -74,6 +77,27 @@ def _sender(cfg: dict) -> str | None:
     return _env("CLAUDE_PLUGIN_OPTION_EMAIL_FROM", "EMAIL_FROM") or (cfg.get("email") or {}).get("from")
 
 
+def _provider(cfg: dict) -> str:
+    """발송 채널 — delivery.yaml email.provider (기본 microsoft_graph, 하위호환)."""
+    return (_env("PRM_EMAIL_PROVIDER")
+            or (cfg.get("email") or {}).get("provider")
+            or "microsoft_graph").lower()
+
+
+def _smtp_cfg(cfg: dict) -> dict:
+    """SMTP 설정 — env(userConfig→키체인) 우선, delivery.yaml email.smtp 폴백.
+    Gmail·O365·SES·사내 메일 등 표준 SMTP 서버를 stdlib 로 지원(새 의존성 없음)."""
+    smtp = (cfg.get("email") or {}).get("smtp") or {}
+    return {
+        "host": _env("CLAUDE_PLUGIN_OPTION_SMTP_HOST", "SMTP_HOST") or smtp.get("host"),
+        "port": int(_env("CLAUDE_PLUGIN_OPTION_SMTP_PORT", "SMTP_PORT") or smtp.get("port") or 587),
+        "user": _env("CLAUDE_PLUGIN_OPTION_SMTP_USER", "SMTP_USER") or smtp.get("user"),
+        "password": _env("CLAUDE_PLUGIN_OPTION_SMTP_PASSWORD", "SMTP_PASSWORD") or smtp.get("password"),
+        # 기본 STARTTLS(587). 465 면 implicit SSL 로 자동 전환.
+        "use_ssl": str(smtp.get("use_ssl", "")).lower() in ("1", "true", "yes"),
+    }
+
+
 def get_graph_token(cfg: dict) -> tuple[str | None, str | None]:
     """(access_token, error_msg) — 성공 시 (token, None), 실패 시 (None, msg)."""
     tenant, client_id, client_secret = _azure_creds(cfg)
@@ -117,6 +141,57 @@ def resolve_recipients(cfg: dict, group: str | None = None,
 def send_mail(cfg: dict, subject: str, html_body: str,
               to_emails: list[str],
               attachments: list[Path] | None = None) -> dict:
+    """발송 디스패처 — provider 에 따라 Graph / SMTP 로 라우팅. 호출부는 동일 시그니처."""
+    provider = _provider(cfg)
+    if provider == "smtp":
+        return send_mail_smtp(cfg, subject, html_body, to_emails, attachments)
+    if provider in ("microsoft_graph", "graph"):
+        return send_mail_graph(cfg, subject, html_body, to_emails, attachments)
+    return {"ok": False, "status": 0, "code": "bad_provider",
+            "msg": f"알 수 없는 email.provider '{provider}' (microsoft_graph | smtp)"}
+
+
+def send_mail_smtp(cfg: dict, subject: str, html_body: str,
+                   to_emails: list[str],
+                   attachments: list[Path] | None = None) -> dict:
+    """표준 SMTP 발송 (stdlib). Gmail/O365/SES/사내 메일 등 — Azure 비종속 경로."""
+    s = _smtp_cfg(cfg)
+    sender = _sender(cfg)
+    if not (s["host"] and sender):
+        return {"ok": False, "status": 0, "code": "auth_failed",
+                "msg": "SMTP 설정 없음 — email.smtp.host + email.from(또는 env) 필요"}
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = sender
+    msg["To"] = ", ".join(to_emails)
+    msg.set_content("HTML 메일입니다. HTML 지원 클라이언트로 확인하세요.")
+    msg.add_alternative(html_body, subtype="html")
+    for p in (attachments or []):
+        if p.exists():
+            msg.add_attachment(p.read_bytes(), maintype="application",
+                               subtype="octet-stream", filename=p.name)
+
+    try:
+        if s["use_ssl"] or s["port"] == 465:
+            with smtplib.SMTP_SSL(s["host"], s["port"], context=ssl.create_default_context(), timeout=20) as srv:
+                if s["user"]:
+                    srv.login(s["user"], s["password"] or "")
+                srv.send_message(msg)
+        else:
+            with smtplib.SMTP(s["host"], s["port"], timeout=20) as srv:
+                srv.starttls(context=ssl.create_default_context())
+                if s["user"]:
+                    srv.login(s["user"], s["password"] or "")
+                srv.send_message(msg)
+        return {"ok": True, "status": 202, "msg": "발송 완료 (SMTP)"}
+    except (smtplib.SMTPException, OSError) as e:
+        return {"ok": False, "status": 0, "code": "smtp_error", "msg": f"SMTP 발송 실패 — {e}"}
+
+
+def send_mail_graph(cfg: dict, subject: str, html_body: str,
+                    to_emails: list[str],
+                    attachments: list[Path] | None = None) -> dict:
     token, err = get_graph_token(cfg)
     if err:
         return {"ok": False, "status": 0, "msg": err, "code": "auth_failed"}
@@ -216,6 +291,35 @@ def list_recipients(cfg: dict):
         print()
 
 
+def validate_connection(cfg: dict) -> dict:
+    """provider 에 맞는 연결 검증으로 분기."""
+    provider = _provider(cfg)
+    if provider == "smtp":
+        return validate_smtp(cfg)
+    if provider in ("microsoft_graph", "graph"):
+        return validate_graph(cfg)
+    return {"ok": False, "msg": f"알 수 없는 email.provider '{provider}'"}
+
+
+def validate_smtp(cfg: dict) -> dict:
+    s = _smtp_cfg(cfg)
+    sender = _sender(cfg)
+    if not (s["host"] and sender):
+        return {"ok": False, "msg": "SMTP 설정 없음 — email.smtp.host + email.from 필요"}
+    try:
+        if s["use_ssl"] or s["port"] == 465:
+            srv = smtplib.SMTP_SSL(s["host"], s["port"], context=ssl.create_default_context(), timeout=10)
+        else:
+            srv = smtplib.SMTP(s["host"], s["port"], timeout=10)
+            srv.starttls(context=ssl.create_default_context())
+        with srv:
+            if s["user"]:
+                srv.login(s["user"], s["password"] or "")
+        return {"ok": True, "msg": f"SMTP 연결 정상 ({s['host']}:{s['port']}, 발송자: {sender})"}
+    except (smtplib.SMTPException, OSError) as e:
+        return {"ok": False, "msg": f"SMTP 연결 실패 — {e}"}
+
+
 def validate_graph(cfg: dict) -> dict:
     token, err = get_graph_token(cfg)
     if err:
@@ -249,7 +353,7 @@ def main():
     parser.add_argument("--test", action="store_true", help="테스트 메일 발송")
     parser.add_argument("--notify-key-error", type=str, help="키 에러 알림 발송")
     parser.add_argument("--list-recipients", action="store_true", help="수신자 목록 출력")
-    parser.add_argument("--validate", action="store_true", help="Graph 연결 검증만")
+    parser.add_argument("--validate", action="store_true", help="발송 채널(Graph/SMTP) 연결 검증만")
     parser.add_argument("--attachment", type=str, action="append",
                         help="첨부파일 경로 (반복 사용 가능)", dest="attachments")
     parser.add_argument("--json", action="store_true", help="결과를 JSON 출력")
@@ -262,7 +366,7 @@ def main():
         return
 
     if args.validate:
-        result = validate_graph(cfg)
+        result = validate_connection(cfg)
         status = "✅" if result["ok"] else "❌"
         print(f"{status} {result['msg']}")
         sys.exit(0 if result["ok"] else 1)

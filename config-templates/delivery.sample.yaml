@@ -1,14 +1,26 @@
 # === 이메일 발송 설정 ===
 # delivery.yaml로 복사 후 실제 정보를 입력하세요.
-# ⚠️ client_secret 포함 — .gitignore에 delivery.yaml 추가 필수
+# ⚠️ 시크릿(client_secret / smtp.password) 포함 — .gitignore에 delivery.yaml 추가 필수
+#    실제 운영은 시크릿을 플러그인 설정(userConfig)→OS 키체인으로 넣는 걸 권장. 이 파일은 dev 폴백.
 
 email:
+  # provider: 발송 채널. microsoft_graph(Azure) 또는 smtp(Gmail·O365·SES·사내메일 등 표준 SMTP).
   provider: microsoft_graph
   from: ""  # 발신자 이메일 (예: you@company.com)
+
+  # ── microsoft_graph 일 때 ──
   azure:
     tenant_id: ""
     client_id: ""
     client_secret: ""
+
+  # ── smtp 일 때 (provider: smtp 로 바꾸고 아래를 채움) ──
+  # smtp:
+  #   host: "smtp.gmail.com"     # O365: smtp.office365.com / SES: email-smtp.<region>.amazonaws.com
+  #   port: 587                  # 587=STARTTLS(기본) / 465=SSL
+  #   user: "you@company.com"    # SMTP 인증 사용자 (Gmail 은 앱 비밀번호)
+  #   password: ""               # 시크릿 — 키체인(userConfig) 권장
+  #   use_ssl: false             # 465 포트면 true
 
 recipients:
   newsletter_briefing:
