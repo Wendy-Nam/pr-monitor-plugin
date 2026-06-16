@@ -380,6 +380,17 @@ def load_competitor_aliases():
             break
 
 
+def competitor_for_text(text: str) -> str | None:
+    """헤드라인 제목의 주체가 어느 경쟁사인지 — 등록된 경쟁사 별칭이 제목에 등장하면
+    그 경쟁사명. 합성기가 group 을 '기타'로 잘못 단 경쟁사 기사(예: Yaskawa→기타)를
+    경쟁사 그룹으로 승격하는 데 쓴다."""
+    load_competitor_aliases()
+    for name in _COMPETITOR_ALIASES:
+        if competitor_in_text(name, text):
+            return name
+    return None
+
+
 def competitor_in_text(group_name: str, text: str) -> bool:
     """헤드라인 텍스트에 해당 경쟁사명(별칭 포함)이 실제로 등장하는지.
 
@@ -910,6 +921,10 @@ def attach_inline_refs(escaped_text: str, articles: list[dict],
 
     if not escaped_text:
         return ""
+    # 합성기가 산문에 간혹 박는 raw 출처 id 토큰([a9f06e8] = 'a'+md5 6자)을 제거한다.
+    # 출처번호 [n] 은 아래에서 제목 매칭으로 다시 붙으므로, 이 raw id 는 잉여 노이즈이자
+    # 링크 안 걸리는 깨진 토큰 — 떼어내야 출력이 [n] 만 깔끔히 남는다.
+    escaped_text = _re.sub(r'\s*\[a[0-9a-f]{6}\]', '', escaped_text)
     # 문단(빈 줄) 보존 — LLM이 주제 전환에 쓴 개행을 한 덩어리로 뭉개지 않는다
     paragraphs = [p.strip() for p in _re.split(r'\n\s*\n', escaped_text) if p.strip()]
     sentences: list[str] = []
@@ -1417,6 +1432,12 @@ def build_html(data: dict, date_str: str,
                 if not competitor_in_text(g, h.get("text", "")):
                     u = h.get("url", "") or h.get("source_url", "")
                     g = url_to_cat.get(u) if url_to_cat.get(u) in CAT_ORDER else "기타"
+            elif g == "기타":
+                # 역방향 승격 — '기타'로 라벨됐지만 제목이 등록 경쟁사를 가리키면
+                # 그 경쟁사 그룹으로 (예: 합성기가 Yaskawa 기사를 기타로 둔 경우).
+                comp = competitor_for_text(h.get("text", ""))
+                if comp:
+                    g = comp
             groups.setdefault(g, []).append(h)
             # 경쟁사인지 카테고리인지 구분 (CAT_ORDER에 없으면 경쟁사)
             if g not in CAT_ORDER and g != "기타" and g not in competitor_names:
