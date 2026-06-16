@@ -1,0 +1,5 @@
+# 개발·테스트 전용 — 플러그인 런타임 venv 에는 설치되지 않는다.
+# bootstrap 은 requirements.txt 만 venv 에 깐다. 테스트는 이걸 따로 설치:
+#   pip install -r requirements-dev.txt
+-r requirements.txt
+pytest==8.3.5

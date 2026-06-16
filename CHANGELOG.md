@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.3.0 — 코드 리뷰 안전 정리
+
+심층 코드 리뷰의 저위험·고가치 지적을 반영. 동작 변화 없음(전부 구조·정리),
+단위 테스트 111개 유지.
+
+### 변경
+- **공통 에러 베이스** `PrMonitorError`(`prmonitor/__init__.py`) 도입 —
+  `BootstrapError`·`DomainPackError` 가 이를 상속. `except PrMonitorError` 로
+  플러그인발 실패를 한 번에 잡을 수 있다(RuntimeError 호환 유지).
+- **합성 모델 정책 상수화**(`steps/newsletter.py`): 흩어진 `"claude-sonnet-4-6"`
+  리터럴을 `_SYNTH_MODEL_DEFAULT`(+`PRM_SYNTH_MODEL_DEFAULT` env)·
+  `_BLOCKED_MODEL_SUBSTR` 한 곳으로. 모델 세대 교체 시 상수만 수정.
+- **init venv 실패 안내 명시화**(`steps/init.py`): 조용히 끝내지 않고 원인+해결책
+  (Python 설치)·세션은 계속 가능함을 stderr 로 안내.
+- **`.gitignore`**: 번들 도메인팩 예시를 `config/examples/` 로 추적 가능하게 예외 추가.
+- **dev 의존성 분리**: `pytest` 를 `requirements.txt`(런타임 venv 설치 대상)에서
+  빼 `requirements-dev.txt` 로. 플러그인 런타임 venv 가 테스트 전용 패키지를 더는
+  깔지 않는다. 테스트: `pip install -r requirements-dev.txt`.
+
+### 정리
+- step 모듈(`pre`·`post`·`newsletter`·`pr_monitor`)의 박제된 `.sh` 원본 라인번호
+  주석 제거 — 참조 대상 bash 파일은 패키징에 없어 혼란만 줬다. 서술적 파일명
+  참조는 보존. (`__version__` 0.1.0→0.3.0 동기화.)
+
 ## 0.2.0 — Haiku 기사 보강 + 합성 품질
 
 키워드 점수만으로는 편집 중요도를 못 잡던 문제(묘기 기사가 실속 기사를 tier1에서
