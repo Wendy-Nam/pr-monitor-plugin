@@ -19,9 +19,10 @@ import sys
 from pathlib import Path
 
 from . import paths
+from . import PrMonitorError
 
 
-class BootstrapError(RuntimeError):
+class BootstrapError(PrMonitorError):
     pass
 
 

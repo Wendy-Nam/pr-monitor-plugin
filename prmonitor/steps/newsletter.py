@@ -3,23 +3,23 @@
 Three-stage pipeline, faithful to the bash ground truth
 (ref-pr-monitor/scripts/newsletter/run-newsletter.sh):
 
-    1. pre.run     — URL 수집 → 추출 → 분류 → 집계 → 컨텍스트 (결정론적)   [.sh L66-70]
-    2. claude -p   — 인사이트 합성 (Step 7, LLM)                          [.sh L78-126]
-    3. post.run    — HTML 렌더 → PR 누적 → 이메일                         [.sh L128-136]
+    1. pre.run     — URL 수집 → 추출 → 분류 → 집계 → 컨텍스트 (결정론적)
+    2. claude -p   — 인사이트 합성 (Step 7, LLM)
+    3. post.run    — HTML 렌더 → PR 누적 → 이메일
 
 Faithfully ported behaviors (with .sh line cites inline):
-  - Collection window: args.hours > resolve_hours("newsletter")            [.sh L45-46]
-  - Exec-metric logging on EXIT regardless of status (the bash `trap`)     [.sh L50-62]
-  - run-pre failure → exit 1                                               [.sh L66-70]
-  - --dry-run short-circuit after pre (skip claude)                        [.sh L72-76]
-  - Guard: missing `claude` binary → clear error, exit 1                   [.sh L78-82]
-  - The synthesis prompt heredoc, re-anchored to ABSOLUTE plugin paths     [.sh L84-105]
-  - claude exit code is informational only — briefing existence decides    [.sh L111-120]
-  - require_file on the briefing JSON → synthesis-failure guard            [.sh L125-126]
-  - PR_MONITOR_EXEC_LOGGED=1 so post's own trap stays silent (no dup log)  [.sh L131-132]
-  - run-post failure → exit 1                                              [.sh L133-136]
-  - REVIEW_NEEDED.md notice                                                [.sh L142-145]
-  - Cost summary — parsed from the stream-json log via JSON, NOT grep/awk  [.sh L147-154]
+  - Collection window: args.hours > resolve_hours("newsletter")
+  - Exec-metric logging on EXIT regardless of status (the bash `trap`)
+  - run-pre failure → exit 1
+  - --dry-run short-circuit after pre (skip claude)
+  - Guard: missing `claude` binary → clear error, exit 1
+  - The synthesis prompt heredoc, re-anchored to ABSOLUTE plugin paths
+  - claude exit code is informational only — briefing existence decides
+  - require_file on the briefing JSON → synthesis-failure guard
+  - PR_MONITOR_EXEC_LOGGED=1 so post's own trap stays silent (no dup log)
+  - run-post failure → exit 1
+  - REVIEW_NEEDED.md notice
+  - Cost summary — parsed from the stream-json log via JSON, NOT grep/awk
 
 Deviations from the .sh, mandated by the architecture contract:
   - No bash / os.system / shell=True. Each step is subprocess.run([...]) with an
@@ -55,15 +55,21 @@ from types import SimpleNamespace
 from .. import domainpack, paths
 from ..common import err, log, ok, require_file, resolve_hours, warn
 
+# 합성 모델 정책 — 엔진 설정(도메인 지식 아님). 한 곳에서 바꾼다.
+# 기본값은 env PRM_SYNTH_MODEL 또는 agent frontmatter 로 덮을 수 있다.
+# 모델 세대가 바뀌면(4-6 → 4-7 …) 이 상수만 고치면 된다.
+_SYNTH_MODEL_DEFAULT = os.environ.get("PRM_SYNTH_MODEL_DEFAULT", "claude-sonnet-4-6")
+_BLOCKED_MODEL_SUBSTR = "opus"  # 비용 과다 — 합성에 금지
+
 
 def _exec_log(*, date: str, run_id: str, started: str, status: int,
               hours: int, claude_log: str) -> None:
     """Write the execution metric record (CLAUDE.md §6).
 
-    Faithful to the bash `write_exec_log` (.sh L53-60): invoke
+    Faithful to the bash `write_exec_log`: invoke
     scripts/lib/exec-log.py with the venv interpreter, recording status/hours,
     the claude stream-json log, and both output artifacts. Never raises — a
-    logging failure only warns, exactly like the bash `|| warn` (.sh L60).
+    logging failure only warns, exactly like the bash `|| warn`.
     """
     briefing = paths.BRIEFING_DIR / f"newsletter-briefing-{date}.json"
     html = paths.NEWSLETTER_OUTPUT_DIR / f"newsletter-report-{date}.html"
@@ -93,8 +99,7 @@ def _synth_model_from_spec() -> str:
 
     raw `claude -p` 는 frontmatter 를 자동 적용하지 않으므로 여기서 읽어 --model 로 넘긴다.
     """
-    default = "claude-sonnet-4-6"
-    val = default
+    val = _SYNTH_MODEL_DEFAULT
     try:
         spec = (paths.AGENTS_DIR / "insight-synthesizer.md").read_text(encoding="utf-8")
         in_fm = False
@@ -119,14 +124,14 @@ def _enforce_cheap_model(model: str) -> str:
 
     frontmatter·PRM_SYNTH_MODEL 무엇이 와도 opus 계열이면 sonnet 으로 강등한다.
     """
-    if "opus" in (model or "").lower():
-        warn(f"합성 모델 '{model}' → 비용 보호로 claude-sonnet-4-6 강등")
-        return "claude-sonnet-4-6"
-    return model or "claude-sonnet-4-6"
+    if _BLOCKED_MODEL_SUBSTR in (model or "").lower():
+        warn(f"합성 모델 '{model}' → 비용 보호로 {_SYNTH_MODEL_DEFAULT} 강등")
+        return _SYNTH_MODEL_DEFAULT
+    return model or _SYNTH_MODEL_DEFAULT
 
 
 def _synth_prompt(date: str) -> str:
-    """The Step-7 synthesis prompt — ported from the heredoc (.sh L86-104).
+    """The Step-7 synthesis prompt — ported from the heredoc.
 
     Same instructions, but every relative path is re-anchored to an absolute
     3-root path so the headless `claude` session resolves files regardless of
@@ -161,7 +166,7 @@ def _synth_prompt(date: str) -> str:
 
 
 def _parse_cost(claude_log: str):
-    """Total cost from the stream-json log, via JSON — not grep/awk (.sh L147-154).
+    """Total cost from the stream-json log, via JSON — not grep/awk.
 
     Reuses exec-log.py's parser (last type=result event's total_cost_usd),
     matching the .sh comment that the cost lives in the stream-json result
@@ -188,7 +193,7 @@ def _parse_cost(claude_log: str):
 def run(args) -> int:
     """Port of run-newsletter.sh main flow. Returns 0 on success, nonzero on failure."""
     date = getattr(args, "date", None) or datetime.now().strftime("%Y-%m-%d")
-    # 시간창: 인자 > pipelines.yaml (월요일 보정 포함)               [.sh L45-46]
+    # 시간창: 인자 > pipelines.yaml (월요일 보정 포함)
     hours = getattr(args, "hours", None)
     if hours is None:
         hours = resolve_hours("newsletter")
@@ -196,11 +201,11 @@ def run(args) -> int:
     dry_run = bool(getattr(args, "dry_run", False))
     no_email = bool(getattr(args, "no_email", False))
 
-    # Writable dir skeleton (mkdir -p data/raw data/processed …)      [.sh L48]
+    # Writable dir skeleton (mkdir -p data/raw data/processed …)
     paths.ensure_dirs()
 
-    # ── exec-log scaffolding (the bash EXIT trap, .sh L50-62) ──────────────────
-    # stream-json log path mirrors logs/executions/newsletter-{F-HM}.log (.sh L27-29)
+    # ── exec-log scaffolding (the bash EXIT trap) ──────────────────
+    # stream-json log path mirrors logs/executions/newsletter-{F-HM}.log
     timestamp = datetime.now().strftime("%Y-%m-%d-%H%M")
     output_log = str(paths.LOGS_DIR / f"newsletter-{timestamp}.log")
     run_id = datetime.now().strftime("%H%M%S")
@@ -211,14 +216,14 @@ def run(args) -> int:
     status = 0
 
     def _finish(code: int) -> int:
-        # Equivalent of `trap 'write_exec_log $?' EXIT` (.sh L62): always log.
+        # Equivalent of `trap 'write_exec_log $?' EXIT`: always log.
         _exec_log(date=date, run_id=run_id, started=started_at,
                   status=code, hours=hours, claude_log=output_log)
         return code
 
     log(f"=== 뉴스레터 실행 ({date}, {hours}h) ===")
 
-    # ── Step 1~6: 전처리 (결정론적) — pre.run                       [.sh L66-70] ─
+    # ── Step 1~6: 전처리 (결정론적) — pre.run ─
     from . import pre  # lazy: sibling module is a separate port
     pre_args = SimpleNamespace(date=date, hours=hours)
     try:
@@ -230,12 +235,12 @@ def run(args) -> int:
         return _finish(1)
 
     if dry_run:
-        log("DRY RUN — Claude 호출 skip (전처리 완료)")          # [.sh L72-76]
+        log("DRY RUN — Claude 호출 skip (전처리 완료)")          #
         print(f"  data/processed/newsletter-facts-{date}.json")
         return _finish(0)
 
-    # ── Step 7: 인사이트 합성 (Claude) ─────────────────────────── [.sh L78-126] ─
-    # Guard missing claude binary with a clear error (.sh L79-82).
+    # ── Step 7: 인사이트 합성 (Claude) ─────────────────────────── ─
+    # Guard missing claude binary with a clear error.
     claude_bin = shutil.which("claude")
     if not claude_bin:
         err("claude CLI 없음. https://docs.claude.com 참고해 Claude Code 설치.")
@@ -247,9 +252,9 @@ def run(args) -> int:
     log(f"로그: {output_log}")
     claude_start = time.monotonic()
 
-    # Claude Code 2.1+: --output-format stream-json 은 --verbose 필수 (.sh L111-119).
+    # Claude Code 2.1+: --output-format stream-json 은 --verbose 필수.
     # 합성만 성공하면 briefing JSON 이 생기므로, claude 종료코드와 무관하게
-    # 이후 briefing 존재 여부로 판단한다 (.sh L112-120).
+    # 이후 briefing 존재 여부로 판단한다.
     # 합성 모델: insight-synthesizer.md frontmatter 의 선언값을 따른다(없으면 sonnet).
     # raw `claude -p` 는 agent frontmatter 를 안 읽으므로 여기서 명시하지 않으면
     # CLI 기본값(Opus)으로 떨어져 ~5배 비싸진다. PRM_SYNTH_MODEL 로 1회 override 가능.
@@ -289,7 +294,7 @@ def run(args) -> int:
 
     claude_duration = int(time.monotonic() - claude_start)
 
-    # require_file on briefing — synthesis-failure guard (.sh L125-126).
+    # require_file on briefing — synthesis-failure guard.
     briefing_json = paths.BRIEFING_DIR / f"newsletter-briefing-{date}.json"
     try:
         require_file(
@@ -298,8 +303,8 @@ def run(args) -> int:
     except SystemExit:
         return _finish(1)
 
-    # ── Step 8~10: 후처리 (HTML 렌더 → PR 누적 → 이메일) ───────── [.sh L128-136] ─
-    # 실행 로그는 이 모듈이 전담 — post 자체 기록 비활성 (.sh L131-132).
+    # ── Step 8~10: 후처리 (HTML 렌더 → PR 누적 → 이메일) ───────── ─
+    # 실행 로그는 이 모듈이 전담 — post 자체 기록 비활성.
     # The env flag is the cross-process contract post.run honors when it shells
     # exec-log.py; passed through args too for the in-process call.
     os.environ["PR_MONITOR_EXEC_LOGGED"] = "1"
@@ -315,16 +320,16 @@ def run(args) -> int:
         err("후처리(post) 실패")
         return _finish(1)
 
-    # ── 결과 요약 ────────────────────────────────────────────── [.sh L138-158] ─
+    # ── 결과 요약 ────────────────────────────────────────────── ─
     log("=== 실행 완료 ===")
     ok(f"합성 소요: {claude_duration // 60}분 {claude_duration % 60}초")
 
-    # REVIEW_NEEDED 플래그 체크 (.sh L142-145).
+    # REVIEW_NEEDED 플래그 체크.
     review_needed = paths.OUTPUT_DIR / "REVIEW_NEEDED.md"
     if review_needed.is_file():
         warn(f"수동 검토 필요: {review_needed} 확인")
 
-    # 비용 추출 — stream-json 결과 이벤트에서 JSON 으로 (.sh L147-154; grep/awk 대체).
+    # 비용 추출 — stream-json 결과 이벤트에서 JSON 으로 (; grep/awk 대체).
     cost = _parse_cost(output_log)
     if cost:
         log(f"추정 비용: ${cost:.4f}")
@@ -338,7 +343,7 @@ def run(args) -> int:
 
 
 def _build_args(argv: list[str] | None) -> argparse.Namespace:
-    """Standalone arg parsing mirroring the bash flags (.sh L31-43)."""
+    """Standalone arg parsing mirroring the bash flags."""
     p = argparse.ArgumentParser(prog="prmonitor newsletter")
     p.add_argument("date", nargs="?", default=None)
     p.add_argument("--hours", type=int, default=None)

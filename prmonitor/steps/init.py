@@ -39,7 +39,14 @@ def run(args=None) -> int:
         if not bootstrap.venv_healthy():
             bootstrap.ensure_venv(quiet=True)
     except Exception as e:  # noqa: BLE001 - SessionStart must not crash the session
-        print(f"[prmonitor init] venv 준비 보류: {e}", file=sys.stderr)
+        # 세션은 살리되, 조용히 끝내지 않고 원인+해결책을 명시한다.
+        print(
+            f"[prmonitor init] Python 가상환경 준비 실패: {e}\n"
+            f"  → 리포트 생성에는 Python 3.9+ 가 필요합니다. python.org 에서 설치 후 "
+            f"세션을 다시 시작하거나 `/setup` 을 실행하세요. "
+            f"(설정 스캐폴딩은 완료됐으니 채팅은 계속 가능합니다.)",
+            file=sys.stderr,
+        )
 
     if first_run or seeded:
         msg = "[prmonitor] 초기화 완료"

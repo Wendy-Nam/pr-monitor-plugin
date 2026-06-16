@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "pr-monitor",
   "displayName": "PR Monitor",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "뉴스 자동화 — 산업 인사이트 뉴스레터 + 자사 PR 모니터링. 도메인팩으로 어떤 조직/산업에도 재사용.",
   "author": {
     "name": "Wendy Nam",

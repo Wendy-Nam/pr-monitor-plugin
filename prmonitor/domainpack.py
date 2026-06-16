@@ -14,9 +14,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from . import paths
+from . import PrMonitorError
 
 
-class DomainPackError(RuntimeError):
+class DomainPackError(PrMonitorError):
     pass
 
 
