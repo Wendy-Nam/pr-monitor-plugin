@@ -14,7 +14,10 @@
 - **`setup-bootstrap` 에이전트**: 카테고리 `watch_keywords`·`keywords.yaml boost` 를
   **한국어+영어 브로드 어휘**로 넓게 생성하도록 지시 추가 — 새 도메인팩이 니치 전문용어만
   담아 진짜 기사를 놓치는 근본 원인 차단.
-- 게이트 단위 테스트(`TestGateDecision`) 4건. 총 117.
+- 게이트 단위 테스트(`TestGateDecision`) + **번들 도메인팩 스모크 테스트**(`test_bundled_packs`):
+  모든 번들 팩이 파싱·스키마 충족하는지, 빈 워크스페이스(예시 팩만)에서 엔진 모듈이 크래시 없이
+  import 되는지(과거 빈 `stakeholder_boosts` IndexError 부류 회귀 방지), `init` 시드 멱등·시크릿
+  미시드까지 검증. `/setup` "예시 팩으로 시작" 케이스 안전망.
 
 ## 0.3.1 — PR 클리핑 수집창 override
 
