@@ -256,6 +256,23 @@ def stakeholder_boost(title: str) -> int:
     return _STAKEHOLDER_BOOST_WEIGHT
 
 
+# ── 포함/제외 게이트 ─────────────────────────────────────────
+def gate_decision(relevance: int, genuinely_categorized: bool) -> str:
+    """include / manual_review / exclude.
+
+    재현율 우선: 키워드 relevance 는 *비중(tier)* 을 정할 뿐 생사를 가르지 않는다.
+    조직이 정의한 카테고리에 **진짜 매칭된** 기사는 점수가 낮아도 버리지 않고
+    manual_review(=tier2 헤드라인)로 살린다 — "누락 없는 모니터링" 철학. 살아남은
+    tier2 의 비중은 Haiku 중요도 채점(aggregate)이 재정하고, 잡음은 낮게 매겨 각주行으로
+    내린다. 어느 카테고리에도 안 걸린(미분류) 잡음만 relevance<2 에서 제외한다.
+    """
+    if relevance >= 3:
+        return "include"
+    if relevance >= 2 or genuinely_categorized:
+        return "manual_review"
+    return "exclude"
+
+
 # ── relevance_score 산정 ─────────────────────────────────────
 def calc_relevance(article: dict, boost_hits: list[str],
                    categories: list[str], competitors: list[str]) -> int:
@@ -363,6 +380,8 @@ def classify_articles(date_str: str):
 
         # 8. uncategorized 캐치올 — relevance 계산 후 '기타산업(other_industrial)'으로 흡수.
         # uncategorized 로 남기면 카테고리 요약에 못 들어가 출처 번호만 받고 본문 미인용됨.
+        # 캐치올 전에 '진짜 카테고리 매칭'이었는지 기록 — 아래 게이트 결정에 쓴다.
+        genuinely_categorized = categories != ["uncategorized"]
         if categories == ["uncategorized"]:
             categories = ["other_industrial"]
 
@@ -380,7 +399,7 @@ def classify_articles(date_str: str):
             "relevance_score": relevance,
             "self_mention": self_mention,
             "boost_keywords_matched": boost_hits[:5],
-            "decision": "include" if relevance >= 3 else ("manual_review" if relevance >= 2 else "exclude"),
+            "decision": gate_decision(relevance, genuinely_categorized),
             "_source_query": art.get("_source_query"),
             "_source_tier": art.get("_source_tier"),
         }

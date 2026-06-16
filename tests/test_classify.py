@@ -245,6 +245,32 @@ class TestSamsungBoost:
         assert stakeholder_boost("두산로보틱스, 협동로봇 신제품") == 0
 
 
+class TestGateDecision:
+    """재현율 우선 게이트 — 카테고리 매칭 기사는 저점수여도 안 버린다."""
+
+    def test_high_score_included(self):
+        from scripts.pipeline.classify import gate_decision
+        assert gate_decision(3, False) == "include"
+        assert gate_decision(5, True) == "include"
+
+    def test_category_match_survives_low_score(self):
+        """핵심 회귀: 카테고리에 진짜 걸린 기사는 relevance<2 여도 manual_review 로 살림
+        (키워드가 좁아 진짜 업계 기사가 조용히 탈락하던 문제)."""
+        from scripts.pipeline.classify import gate_decision
+        assert gate_decision(1, True) == "manual_review"
+        assert gate_decision(0, True) == "manual_review"
+
+    def test_uncategorized_noise_excluded(self):
+        """미분류 잡음은 여전히 저점수에서 제외 — 무분별 개방 아님."""
+        from scripts.pipeline.classify import gate_decision
+        assert gate_decision(1, False) == "exclude"
+        assert gate_decision(0, False) == "exclude"
+
+    def test_midscore_manual_review(self):
+        from scripts.pipeline.classify import gate_decision
+        assert gate_decision(2, False) == "manual_review"
+
+
 class TestCalcRelevance:
     def test_high_relevance(self):
         from scripts.pipeline.classify import calc_relevance
