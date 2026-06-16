@@ -101,3 +101,46 @@ class TestInitScaffolding:
         assert (cfg / "company-profile.yaml").is_file(), "config 시드 안 됨"
         # 시크릿 파일은 절대 시드하지 않는다 (userConfig→키체인 경로)
         assert not (cfg / "delivery.yaml").is_file(), "delivery.yaml(시크릿) 시드됨"
+
+
+# ── D. setup 가드레일 — 기존 사용자 도메인팩 리셋 방지 ─────────
+class TestSetupGuard:
+    def _guard(self, ws: Path):
+        import importlib.util, importlib
+        # ws 로 paths 를 재해석해 가드 모듈을 격리 로드
+        env = {**os.environ, "CLAUDE_PROJECT_DIR": str(ws),
+               "CLAUDE_PLUGIN_ROOT": str(PROJECT_ROOT)}
+        return env
+
+    def test_check_via_subprocess(self, tmp_path):
+        """--check: 사용자 실데이터=exit 3, 예시 그대로/미설정=exit 0."""
+        import subprocess, sys as _sys
+        guard = PROJECT_ROOT / "scripts" / "lib" / "setup-guard.py"
+
+        # (1) 미설정 → 0
+        ws = tmp_path / "empty"
+        (ws / "config").mkdir(parents=True)
+        env = {**os.environ, "CLAUDE_PROJECT_DIR": str(ws), "CLAUDE_PLUGIN_ROOT": str(PROJECT_ROOT)}
+        r = subprocess.run([_sys.executable, str(guard), "--check"], env=env, capture_output=True)
+        assert r.returncode == 0
+
+        # (2) 사용자 실데이터(예시 템플릿과 다른 이름) → 3
+        ws2 = tmp_path / "real"
+        (ws2 / "config").mkdir(parents=True)
+        (ws2 / "config" / "company-profile.yaml").write_text(
+            'company:\n  name: "내회사 주식회사"\n', encoding="utf-8")
+        env2 = {**os.environ, "CLAUDE_PROJECT_DIR": str(ws2), "CLAUDE_PLUGIN_ROOT": str(PROJECT_ROOT)}
+        r2 = subprocess.run([_sys.executable, str(guard), "--check"], env=env2, capture_output=True)
+        assert r2.returncode == 3, r2.stdout + r2.stderr
+
+    def test_backup_copies_config(self, tmp_path):
+        import subprocess, sys as _sys
+        guard = PROJECT_ROOT / "scripts" / "lib" / "setup-guard.py"
+        ws = tmp_path / "ws"
+        (ws / "config").mkdir(parents=True)
+        (ws / "config" / "company-profile.yaml").write_text('company:\n  name: "X"\n', encoding="utf-8")
+        env = {**os.environ, "CLAUDE_PROJECT_DIR": str(ws), "CLAUDE_PLUGIN_ROOT": str(PROJECT_ROOT)}
+        r = subprocess.run([_sys.executable, str(guard), "--backup"], env=env, capture_output=True)
+        assert r.returncode == 0
+        baks = list(ws.glob("config.bak-*"))
+        assert baks and (baks[0] / "company-profile.yaml").exists()
