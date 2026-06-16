@@ -194,7 +194,13 @@ def _glossary_prompt(date, briefing_path, ctx_path, gloss_out) -> str:
 {briefing_path} (최종 원고: tldr·insights·category_summary·headlines)를 처음부터 끝까지 읽고,
 원고에 **실제로 등장하는** 회사 중 독자가 처음 들을 만한 **비유명** 회사에 1줄 한국어 설명을 붙인다.
 - 제외: {ctx_path} 의 self_context_bundle.competitors_yaml 의 경쟁사, 빅테크(NVIDIA·Amazon·Google·Microsoft·Samsung 등), 자사, 이미 유명한 곳.
-- 설명: "[국가] [주력분야] [업태]" + 구체 앵커(대표 제품·설립연도·소속 등) 한 절. {ctx_path} 의 facts·tier2_headlines 에서 확인되는 사실만. 30~70자. 과장·평가·전망 금지. 영문 회사명은 원문 그대로(음역 금지).
+- 설명 = **그 회사가 평소 "무엇을 하는 곳인지" 일반 개요**(30~70자). "[국가] [주력 분야] [업태]"를 기본으로, 회사 배경(대표 제품·설립연도·규모·소속/모회사)이 facts 에 있으면 한 절 덧붙인다. 독자가 본문 읽다 "이 회사 뭐지?" 할 때 정체를 알려주는 **사전 항목**이다.
+  - ⛔ **이번 호 뉴스·사건(투자·수주·MoU·발표·시연 등)을 설명에 넣지 마라** — 그건 본문/인사이트가 이미 다루므로 중복이다. 글로서리는 회사 자체 개요만.
+  - 회사 배경이 안 보이면 식별 가능한 개요(국가·분야·업태)만 짧게. 뉴스로 분량을 채우지 마라.
+  - 과장·평가·전망 금지. 영문 회사명은 원문 그대로(음역 금지).
+  - ✅ "독일 인지형 휴머노이드 로봇 개발사. 풀바디 휴머노이드 플랫폼을 만든다."
+  - ✅ "스웨덴 자율 물류 솔루션 개발사. 공장·창고용 자율 이송 장비를 공급한다."
+  - ❌ "독일 휴머노이드 개발사. NVIDIA·Amazon 지원으로 $1.4B 시리즈C 완료." (← 이번 호 뉴스 = 본문과 중복)
 - **원고에 안 나온 회사는 넣지 마라(경제성). 원고에 나온 비유명 회사는 빠짐없이(누락 0).**
 {gloss_out} 에 JSON 배열로 저장: [{{"name":"...","desc":"..."}}]. 설명·잡담 없이 파일만 쓴다."""
 
@@ -306,7 +312,7 @@ def _run_parallel_synth(date, claude_bin, synth_model, synth_effort, synth_env):
     except FileNotFoundError:
         pass
     gargv = [claude_bin, "-p", _glossary_prompt(date, briefing_path, ctx_path, gloss_out),
-             "--model", os.environ.get("PRM_GLOSSARY_MODEL", "claude-haiku-4-5"),
+             "--model", os.environ.get("PRM_GLOSSARY_MODEL", "claude-sonnet-4-6"),
              "--effort", "low", "--allowedTools", "Read,Write",
              "--output-format", "stream-json", "--verbose"]
     try:
