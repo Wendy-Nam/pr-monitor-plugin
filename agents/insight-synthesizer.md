@@ -124,6 +124,8 @@ synthesis-context 의 각 fact·tier2 헤드라인에는 `source_date` 필드가
 JSON: `"headlines"` 배열. 각 항목에 `group` (경쟁사명 또는 카테고리ID) + `text` + `source` + `ref` (입력 facts의 `id` — URL·날짜는 resolve-refs가 결정론 조인하므로 직접 쓰지 않는다).
 경쟁사 매칭된 기사는 `group: "[경쟁사명]"` 식으로, 나머지는 `group: "[category_id]"` 식으로.
 
+**tier2 기사 포함 의무**: 인사이트·카테고리 요약에서 직접 다루지 못한 tier2 기사도 `headlines` 배열에 포함한다. 단순 제목 번역이 아니라 **"무슨 일이 있었는지" 한국어 1~2문장**으로 쓴다 (예: "MassRobotics가 2026 로보틱스 메달 수상자를 발표했다. 올해는 물류·협동 분야 스타트업이 다수 선정됐다."). tier2_headlines에 있는 모든 기사를 빠짐없이 포함할 것 — 독자가 "이 밖에 N건" 링크를 클릭했을 때 내용을 파악할 수 있어야 한다.
+
 ### 이번 호 등장 기업 설명 (company_glossary)
 
 TL;DR·인사이트·헤드라인에 등장하는 기업 중 **경영진이 처음 들을 만한 낯선 회사**에 1줄 한국어 설명을 붙인다.

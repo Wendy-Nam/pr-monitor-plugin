@@ -266,10 +266,18 @@ def run(args) -> int:
         "--output-format", "stream-json",
         "--verbose",
     ]
+    # 진짜 병목은 headless extended thinking — rate-limit 시 6900토큰이 9분으로 불어난다.
+    # 합성은 추론이 아니라 스펙대로의 구조적 생성이라 thinking 이 품질을 못 사준다.
+    # MAX_THINKING_TOKENS=0 으로 완전 비활성(중간값은 --effort 에 밀려 무시됨). 품질은
+    # 프롬프트·self-context 데이터로 잡는다. PRM_SYNTH_THINKING 로 1회 override 가능.
+    # 부모 세션의 CLAUDE_EFFORT(=high 등)가 새지 않도록 서브프로세스 env 를 명시 구성.
+    synth_env = dict(os.environ)
+    synth_env["MAX_THINKING_TOKENS"] = os.environ.get("PRM_SYNTH_THINKING", "0")
+    synth_env.pop("CLAUDE_EFFORT", None)  # --effort 플래그가 정본
     claude_rc = 0
     try:
         with open(output_log, "w", encoding="utf-8") as logf:
-            proc = subprocess.run(claude_argv, stdout=logf,
+            proc = subprocess.run(claude_argv, stdout=logf, env=synth_env,
                                   stderr=subprocess.STDOUT, check=False)
         claude_rc = proc.returncode
     except OSError as e:

@@ -976,10 +976,26 @@ def attach_inline_refs(escaped_text: str, articles: list[dict],
             truly_new = []
 
         if truly_new:
-            # 제목 나열 대신 건수만 — 제목 없이 나열하면 의미없는 키워드 묶음이 됨
+            # 산문에 안 엮인 기사도 한국어 헤드라인 제목으로 보여준다 (독자가 링크
+            # 안 눌러도 내용 파악). 영문 원제목·짧은 키워드 잔재는 거른다 — 의미없는
+            # 나열 방지. 표시는 최대 8건, 나머지는 ref 번호만(커버리지 유지).
+            snippets = []
+            for a in truly_new:
+                hl = (a.get("text", "") or "").strip()
+                short = _re.split(r"[,，。\.]", hl)[0].strip()
+                # 한국어가 실제로 있고 8자 이상일 때만 — 영문 원제목/단어조각 제외
+                if any('가' <= ch <= '힣' for ch in short) and len(short) >= 8:
+                    snippets.append(esc(short))
+                if len(snippets) >= 8:
+                    break
             refs_str = "".join(_ref(a) for a in truly_new)
-            n = len(truly_new)
-            out += f" 이 밖에 {n}건이 더 수집됐다.{refs_str}"
+            if snippets:
+                joined = ", ".join(snippets)
+                tail = " 등이" if len(truly_new) > len(snippets) else "도"
+                out += f" 이 밖에 {joined}{tail} 추가로 다뤄졌다.{refs_str}"
+            else:
+                # 표시할 한국어 제목이 없으면 ref 번호만 붙여 커버리지 유지
+                out += refs_str
 
         if warn_label and truly_new:
             for a in truly_new:
