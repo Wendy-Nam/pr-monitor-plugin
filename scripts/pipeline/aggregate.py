@@ -104,6 +104,55 @@ def is_low_signal_tier_candidate(art: dict) -> bool:
     return False
 
 
+# ── 같은 사건 병합 (다른 매체·다른 제목) ─────────────────────
+# char 유사도만으론 표현이 다른 동일 사건을 놓친다(예: "BD 주주 바뀌나" vs "삼성, BD 지분
+# 투자설" — 둘 다 같은 사건이나 제목 char-유사도 낮음). distinctive 엔티티(고유명사) 2개+
+# 공유 + 날짜 근접이면 같은 사건으로 본다. 산업 특정어는 도메인팩 generic 으로 제외(중립).
+_BASE_STOP = {"단독", "속보", "보도", "기업", "발표", "공개", "출시", "예정", "계획",
+              "관련", "시장", "the", "and", "for", "with", "from", "into"}
+try:
+    _DEDUP_STOP = _BASE_STOP | {str(t).lower()
+                               for t in _classify_tuning.get("generic_category_terms", [])}
+except Exception:
+    _DEDUP_STOP = set(_BASE_STOP)
+
+
+def _event_tokens(title: str) -> set:
+    import re
+    toks = set(re.findall(r"[A-Za-z][A-Za-z0-9.&-]{2,}|[가-힣]{2,}", (title or "").lower()))
+    return toks - _DEDUP_STOP
+
+
+def _close_in_time(a: dict, b: dict, days: int = 3) -> bool:
+    da = (a.get("date") or a.get("published_date") or "")[:10]
+    db = (b.get("date") or b.get("published_date") or "")[:10]
+    if not da or not db:
+        return True  # 날짜 모르면 막지 않는다
+    try:
+        return abs((datetime.strptime(da, "%Y-%m-%d")
+                    - datetime.strptime(db, "%Y-%m-%d")).days) <= days
+    except ValueError:
+        return True
+
+
+def _same_event(a: dict, b: dict, threshold: float = 0.7) -> bool:
+    ta, tb = a.get("title", ""), b.get("title", "")
+    if title_similarity(ta, tb) > threshold:
+        return True
+    return (len(_event_tokens(ta) & _event_tokens(tb)) >= 2 and _close_in_time(a, b))
+
+
+def merge_same_event(articles: list[dict]) -> list[dict]:
+    """전역 사건 병합 — 같은 사건(다른 매체) 기사를 대표 1건으로. 카테고리 분류 전에 돌려
+    같은 사건이 여러 카테고리로 흩어지는 것을 막는다. 입력이 score 내림차순이면 대표=최고점."""
+    kept: list[dict] = []
+    for art in articles:
+        if any(_same_event(art, k) for k in kept):
+            continue
+        kept.append(art)
+    return kept
+
+
 # ── 티어 분류 ────────────────────────────────────────────────
 def assign_tiers(arts: list[dict]) -> list[dict]:
     """tier 1=주요소식, 2=세부동향 부여. arts는 이미 score+recency 내림차순 정렬된 상태."""
@@ -214,6 +263,15 @@ def aggregate(date_str: str, hours: int = 24):
 
     # 카테고리 순서 (company-profile.yaml 순서 유지)
     cat_order = list(categories_config.keys())
+
+    # 전역 사건 병합 (카테고리 분류 전) — 같은 사건의 다른 매체 기사를 대표 1건으로 합쳐
+    # 같은 사건이 여러 카테고리에 중복 등장하는 것을 막는다. score 내림차순 정렬 후 병합해
+    # 대표는 최고점 기사. (per-category dedup 은 못 잡는 cross-category 동일사건을 여기서 처리)
+    articles.sort(key=lambda a: sort_key(a, date_str), reverse=True)
+    before = len(articles)
+    articles = merge_same_event(articles)
+    if before != len(articles):
+        print(f"  사건 병합: {before} → {len(articles)}건 ({before - len(articles)}건 동일사건 합침)")
 
     # 카테고리별 그룹핑
     by_category: dict[str, list[dict]] = {}
