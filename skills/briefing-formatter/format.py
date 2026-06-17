@@ -38,9 +38,9 @@ insight-synthesizer JSON → 인사이트 뉴스레터 HTML.
     ],
     "category_summary": [
       {
-        "category_id": "humanoid",
-        "category_name": "Humanoid",
-        "color": "#7c3aed",
+        "category_id": "battery",
+        "category_name": "배터리",
+        "color": "#2563eb",
         "summary": "서술형 요약...",
         "sources": [
           {"name": "이데일리", "date": "2026-06-05", "url": "https://..."}
@@ -54,7 +54,7 @@ insight-synthesizer JSON → 인사이트 뉴스레터 HTML.
         "date": "2026-06-04",
         "title": "기사 제목",
         "summary": "한줄 요약",
-        "category": "humanoid"
+        "category": "battery"
       }
     ]
   }
@@ -282,13 +282,7 @@ CSS = """\
     line-height: 1.65;
   }
 
-  /* color tokens */
-  .c-humanoid  { background: #7c3aed; }
-  .c-industrial { background: #dc2626; }
-  .c-cobot     { background: #2563eb; }
-  .c-platform  { background: #059669; }
-  .c-amr       { background: #d97706; }
-  .c-funding   { background: #6b7280; }
+  /* 카테고리 dot 색은 categories.yaml 의 color 로 인라인 적용된다(도메인 무관). */
 
   @media (max-width: 600px) {
     body { padding: 20px 14px !important; }
@@ -1080,10 +1074,10 @@ def render_category_summary_blocks(category_summary: list[dict],
         color   = CAT_COLORS.get(cat_id, "#78716c")  # JSON 색상 무시, CAT_COLORS 강제
         name    = esc(cat.get("category_name", ""))
         text    = esc(cat.get("summary", ""))
-        dot_cls = CAT_DOT_CLASSES.get(cat_id, "")
-        dot     = (f'<div class="cat-dot {dot_cls}"></div>'
-                   if dot_cls
-                   else f'<div class="cat-dot" style="background:{color};"></div>')
+        # dot 색은 항상 categories.yaml 의 color(인라인)로 — 도메인 무관. (예전엔 dot_class
+        # CSS 에 의존했으나 그 CSS 가 특정 도메인 카테고리명으로 하드코딩돼 있어, 다른
+        # 도메인팩에선 색이 안 먹었다. 이제 어느 카테고리든 색이 적용된다.)
+        dot = f'<div class="cat-dot" style="background:{color};"></div>'
 
         # 이 카테고리 기사 = 합성기 헤드라인(한국어 text) + reg 백필(나머지 수집분).
         # 수집된 그 카테고리 전 기사를 대상으로 삼아, 중요한 건 산문에 인라인 [n],

@@ -198,9 +198,8 @@ def _glossary_prompt(date, briefing_path, ctx_path, gloss_out) -> str:
   - ⛔ **이번 호 뉴스·사건(투자·수주·MoU·발표·시연 등)을 설명에 넣지 마라** — 그건 본문/인사이트가 이미 다루므로 중복이다. 글로서리는 회사 자체 개요만.
   - 회사 배경이 안 보이면 식별 가능한 개요(국가·분야·업태)만 짧게. 뉴스로 분량을 채우지 마라.
   - 과장·평가·전망 금지. 영문 회사명은 원문 그대로(음역 금지).
-  - ✅ "독일 인지형 휴머노이드 로봇 개발사. 풀바디 휴머노이드 플랫폼을 만든다."
-  - ✅ "스웨덴 자율 물류 솔루션 개발사. 공장·창고용 자율 이송 장비를 공급한다."
-  - ❌ "독일 휴머노이드 개발사. NVIDIA·Amazon 지원으로 $1.4B 시리즈C 완료." (← 이번 호 뉴스 = 본문과 중복)
+  - ✅ "[국가] [주력 분야] 개발사. [대표 제품·기술]을 만든다." (정체성 + 평소 배경)
+  - ❌ "[국가] [분야] 개발사. [이번 호 투자·수주·발표 등 사건]." (← 이번 호 뉴스는 본문과 중복 — 넣지 마라)
 - **원고에 안 나온 회사는 넣지 마라(경제성). 원고에 나온 비유명 회사는 빠짐없이(누락 0).**
 {gloss_out} 에 JSON 배열로 저장: [{{"name":"...","desc":"..."}}]. 설명·잡담 없이 파일만 쓴다."""
 
@@ -225,46 +224,63 @@ def _run_parallel_synth(date, claude_bin, synth_model, synth_effort, synth_env):
     for h in ctx.get("tier2_headlines", []) or []:
         t2_by_cat.setdefault(h.get("category", ""), []).append(h)
 
+    paths.BRIEFING_DIR.mkdir(parents=True, exist_ok=True)  # claude 가 mkdir 안 하도록 선생성
     jobs = []  # (label, out_path, prompt)
     # LLM 출력은 워크스페이스(BRIEFING_DIR)로 — claude -p 는 .claude/ 캐시 경로 Write 를
     # '민감 파일'로 차단한다. 슬라이스 입력(synctx-cat)은 Python 이 캐시에 써도 Read 는 허용.
     core_out = paths.BRIEFING_DIR / f"briefing-core-{date}.json"
     jobs.append(("core", core_out, _core_prompt(date, core_out)))
+    # 카테고리 이름 맵 (tier2-only 카테고리용)
+    try:
+        _cat_defs = domainpack.load_pack("categories").get("categories", {}) or {}
+    except Exception:  # noqa: BLE001
+        _cat_defs = {}
+    tier1_by_cid = {c.get("category_id", ""): c for c in cats if c.get("category_id")}
+    # tier1 + tier2-only 모든 카테고리에 digest 생성 — tier2-only(예: funding) 누락 방지
+    all_cids = list(tier1_by_cid) + [c for c in t2_by_cat if c and c not in tier1_by_cid]
     cat_outs = []  # (cid, out, name)
-    for c in cats:
-        cid = c.get("category_id", "")
-        if not cid:
-            continue
-        sl = {"date": date, "category_id": cid,
-              "category_name": c.get("category_name", ""),
+    for cid in all_cids:
+        c = tier1_by_cid.get(cid, {})
+        name = c.get("category_name") or (_cat_defs.get(cid) or {}).get("label_ko", cid)
+        sl = {"date": date, "category_id": cid, "category_name": name,
               "facts": c.get("facts", []),
               "tier2_headlines": t2_by_cat.get(cid, []),
               "self_context": self_slim}
         sl_path = paths.PROCESSED_DIR / f"synctx-cat-{cid}-{date}.json"
         sl_path.write_text(json.dumps(sl, ensure_ascii=False, indent=2), encoding="utf-8")
         out = paths.BRIEFING_DIR / f"briefing-cat-{cid}-{date}.json"
-        cat_outs.append((cid, out, c.get("category_name", "")))
+        cat_outs.append((cid, out, name))
         jobs.append((f"cat-{cid}", out, _cat_prompt(date, cid, sl_path, out)))
 
     def _run_one(job):
         label, out, prompt = job
-        try:
-            out.unlink()
-        except FileNotFoundError:
-            pass
         logp = paths.LOGS_DIR / f"synth-{label}-{date}.log"
         argv = [claude_bin, "-p", prompt, "--model", synth_model,
                 "--effort", synth_effort, "--allowedTools", "Read,Write,Edit",
+                "--add-dir", str(paths.PROJECT_DIR),  # 워크스페이스 출력 Write 허용
                 "--output-format", "stream-json", "--verbose"]
-        try:
-            with open(logp, "w", encoding="utf-8") as lf:
-                subprocess.run(argv, stdout=lf, stderr=subprocess.STDOUT,
-                               env=synth_env, check=False)
-        except OSError as e:
-            warn(f"합성 호출 실패 [{label}] — {e}")
-        return label, out.exists()
+        # 일시 실패(API 529 Overloaded 등)에 재시도 — 실패하면 그 카테고리가 통째로
+        # 드롭되므로 백오프 재시도로 방어한다.
+        for attempt in range(3):
+            try:
+                out.unlink()
+            except FileNotFoundError:
+                pass
+            try:
+                with open(logp, "w", encoding="utf-8") as lf:
+                    subprocess.run(argv, stdout=lf, stderr=subprocess.STDOUT,
+                                   env=synth_env, check=False)
+            except OSError as e:
+                warn(f"합성 호출 실패 [{label}] — {e}")
+            if out.exists():
+                return label, True
+            if attempt < 2:
+                time.sleep(3 * (attempt + 1))  # 529 는 일시적 — 짧게 재시도
+        warn(f"합성 재시도 후에도 실패 [{label}] — 해당 항목 누락 가능")
+        return label, False
 
-    # 동시 6 (rate-limit 여유). 카테고리 6개 + core 면 2배치.
+    # 동시 6 (속도 우선). 529 Overloaded 는 _run_one 의 빠른 재시도가 흡수 — 동시성을
+    # 낮춰 웨이브를 늘리는 것보다, 높게 유지하고 일시 실패만 재시도하는 게 빠르고 안정적.
     with ThreadPoolExecutor(max_workers=6) as ex:
         list(ex.map(_run_one, jobs))
 
@@ -314,19 +330,24 @@ def _run_parallel_synth(date, claude_bin, synth_model, synth_effort, synth_env):
     gargv = [claude_bin, "-p", _glossary_prompt(date, briefing_path, ctx_path, gloss_out),
              "--model", os.environ.get("PRM_GLOSSARY_MODEL", "claude-sonnet-4-6"),
              "--effort", "low", "--allowedTools", "Read,Write",
+             "--add-dir", str(paths.PROJECT_DIR),
              "--output-format", "stream-json", "--verbose"]
-    try:
-        with open(paths.LOGS_DIR / f"synth-glossary-{date}.log", "w", encoding="utf-8") as lf:
-            subprocess.run(gargv, stdout=lf, stderr=subprocess.STDOUT, env=synth_env, check=False)
-        if gloss_out.exists():
-            gl = json.loads(gloss_out.read_text(encoding="utf-8"))
-            if isinstance(gl, list) and gl:
-                briefing["company_glossary"] = gl
-                briefing_path.write_text(
-                    json.dumps(briefing, ensure_ascii=False, indent=2), encoding="utf-8")
-                log(f"용어집 보강: {len(gl)}곳")
-    except (OSError, json.JSONDecodeError) as e:
-        warn(f"용어집 보강 실패 — {e}")
+    for attempt in range(2):  # 529 등 일시 실패 1회 재시도
+        try:
+            with open(paths.LOGS_DIR / f"synth-glossary-{date}.log", "w", encoding="utf-8") as lf:
+                subprocess.run(gargv, stdout=lf, stderr=subprocess.STDOUT, env=synth_env, check=False)
+            if gloss_out.exists():
+                gl = json.loads(gloss_out.read_text(encoding="utf-8"))
+                if isinstance(gl, list) and gl:
+                    briefing["company_glossary"] = gl
+                    briefing_path.write_text(
+                        json.dumps(briefing, ensure_ascii=False, indent=2), encoding="utf-8")
+                    log(f"용어집 보강: {len(gl)}곳")
+                break
+        except (OSError, json.JSONDecodeError) as e:
+            warn(f"용어집 보강 실패 — {e}")
+        if attempt < 1:
+            time.sleep(5)
 
     # 임시 분할 산출물 정리 (머지 완료 — 디버깅 필요 시 PRM_KEEP_SPLITS 로 보존)
     if not os.environ.get("PRM_KEEP_SPLITS"):
@@ -443,6 +464,7 @@ def run(args) -> int:
         "--model", synth_model,
         "--effort", synth_effort,
         "--allowedTools", "Read,Write,Edit,Bash",
+        "--add-dir", str(paths.PROJECT_DIR),  # 워크스페이스 briefing Write 허용
         "--output-format", "stream-json",
         "--verbose",
     ]

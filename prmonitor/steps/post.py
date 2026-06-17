@@ -88,9 +88,14 @@ def _quality_warning_count(date_str: str) -> int:
     """
     qw_file = paths.NEWSLETTER_OUTPUT_DIR / f".quality-warnings-{date_str}.json"
     try:
-        return len(load_json(qw_file))
+        warnings = load_json(qw_file)
     except Exception:
         return 0
+    # 문장 길이(글자수 초과) 경고는 발송을 막지 않는다 — 가독성 참고일 뿐 사실 오류가
+    # 아니다. 발송 게이트는 날조·비약·금지어 등 '내용 오류'만 센다. (길이 경고는 로그엔 남음)
+    blocking = [w for w in warnings
+                if not (isinstance(w, str) and "자 문장 (>" in w)]
+    return len(blocking)
 
 
 def _write_exec_log(

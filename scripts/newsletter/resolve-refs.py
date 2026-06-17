@@ -22,7 +22,7 @@ from pathlib import Path
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from prmonitor import paths
+from prmonitor import paths, domainpack
 
 # processed JSON은 PLUGIN_DATA의 data/processed에서 읽고 다시 쓴다
 PROCESSED = paths.PROCESSED_DIR
@@ -41,8 +41,19 @@ FIELD_MAP = [
     ("source_title", "title"),
 ]
 
-STOP_TOKENS = {"the", "and", "for", "with", "from",
-               "robot", "robots", "robotics", "humanoid", "ai"}
+# 토큰 매칭에서 제외할 범용어. 영문 기능어 + 도메인팩의 generic_category_terms(산업 공통어).
+# 산업 특정어(robot/humanoid 등)를 엔진에 하드코딩하지 않는다 — 도메인팩에서 읽는다.
+def _stop_tokens() -> set:
+    base = {"the", "and", "for", "with", "from", "into"}
+    try:
+        terms = domainpack.get("classify-tuning", "generic_category_terms", []) or []
+        base |= {str(t).lower() for t in terms}
+    except Exception:
+        pass
+    return base
+
+
+STOP_TOKENS = _stop_tokens()
 
 
 def en_tokens(s: str) -> set:
