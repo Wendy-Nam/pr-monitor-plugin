@@ -143,11 +143,23 @@ def _same_event(a: dict, b: dict, threshold: float = 0.7) -> bool:
 
 
 def merge_same_event(articles: list[dict]) -> list[dict]:
-    """전역 사건 병합 — 같은 사건(다른 매체) 기사를 대표 1건으로. 카테고리 분류 전에 돌려
-    같은 사건이 여러 카테고리로 흩어지는 것을 막는다. 입력이 score 내림차순이면 대표=최고점."""
+    """전역 사건 병합 — 같은 사건(다른 매체) 기사를 대표 1건으로. **enrich(Haiku)가 매긴
+    cluster 가 1순위 판정** — 의미 기반이라 표현이 달라도 같은 사건을 묶고, 회사가 같아도
+    다른 사건은 안 묶는다(엔티티 휴리스틱의 과병합 회피). cluster 없는 기사(enrich 실패 등)는
+    거의 동일한 제목(>0.85)만 중복 처리. 입력이 score 내림차순이면 대표=최고점."""
     kept: list[dict] = []
+    seen_clusters: set = set()
     for art in articles:
-        if any(_same_event(art, k) for k in kept):
+        cl = art.get("cluster")
+        if cl is not None:
+            if cl in seen_clusters:
+                continue
+            seen_clusters.add(cl)
+            kept.append(art)
+            continue
+        # cluster 없으면 거의 동일한 제목만 중복으로 본다 (과병합 방지)
+        if any(title_similarity(art.get("title", ""), k.get("title", "")) > 0.85
+               for k in kept):
             continue
         kept.append(art)
     return kept

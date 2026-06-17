@@ -284,6 +284,13 @@ def _run_parallel_synth(date, claude_bin, synth_model, synth_effort, synth_env):
     with ThreadPoolExecutor(max_workers=6) as ex:
         list(ex.map(_run_one, jobs))
 
+    # 병렬 배치에서 실패한 호출은 순차 재시도 — 동시 부하가 사라진 상태라 529 Overloaded 가
+    # 거의 사라진다. (병렬 중엔 다른 호출이 계속 API 를 때려 재시도도 529 나던 문제 차단.)
+    for job in jobs:
+        if not job[1].exists():
+            log(f"  순차 재시도 [{job[0]}] (병렬 실패분 — 부하 없이)")
+            _run_one(job)
+
     # 머지
     briefing = {"date": date, "tldr": "", "insights": [], "company_glossary": [],
                 "landscape_update_points": [], "category_summary": [], "headlines": []}

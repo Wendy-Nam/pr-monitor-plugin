@@ -93,7 +93,9 @@ def _run_haiku(in_path: Path, out_path: Path) -> bool:
 
 {_build_rubric()}
 
-{out_path} 에 JSON 배열로 저장한다 — 각 원소는 {{"id": "<입력 id 그대로>", "importance": <1-5 정수>, "ko_summary": "<요약 한 문장>"}}.
+또한 각 기사에 **cluster**(정수)를 매긴다 — **같은 사건**(동일 발표·계약·투자·수주·시연 등)을 다룬 기사끼리 같은 cluster, 사건이 다르면 다른 cluster. 매체·표현만 달라도 같은 사건이면 같은 cluster 다(예: 같은 인수설을 보도한 두 매체 = 같은 cluster). **단, 회사가 같아도 사건이 다르면 다른 cluster**(예: A사 투자 유치 vs A사 신제품 출시 = 다른 cluster). 같은 사건이 1건뿐이면 그 기사만의 고유 cluster.
+
+{out_path} 에 JSON 배열로 저장한다 — 각 원소는 {{"id": "<입력 id 그대로>", "importance": <1-5 정수>, "ko_summary": "<요약 한 문장>", "cluster": <정수>}}.
 입력의 모든 기사를 빠짐없이 포함한다. 설명·잡담 없이 파일만 쓴다."""
     log = paths.LOGS_DIR / f"enrich-{in_path.stem}.log"
     env = dict(os.environ)
@@ -165,10 +167,13 @@ def main():
         ko = (e.get("ko_summary") or "").strip()
         if ko:
             a["ko_summary"] = ko
+        cl = e.get("cluster")
+        if isinstance(cl, (int, float)):
+            a["cluster"] = int(cl)
         n += 1
 
     classified.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"✓ enrich: {n}/{len(rows)}건 보강 (importance + ko_summary)")
+    print(f"✓ enrich: {n}/{len(rows)}건 보강 (importance + ko_summary + cluster)")
 
 
 if __name__ == "__main__":
