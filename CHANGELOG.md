@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.6 — 설정 튜닝 가이드(USAGE.md) + 번들 예시 보강
+
+문서·예시 보강. 엔진 동작 변경 없음.
+
+- **USAGE.md 신설**: 도메인팩 설정 & 품질 튜닝 가이드 — 설정이 작동하는 방식, 파일 지도, 품질 4대 레버(self-context·이중언어 키워드·boost/exclude·prompt-examples), 투자·M&A 라우팅(ma_route), 부트스트랩 깊이 기준.
+- **README**: 커스터마이즈에 IMPORTANT 콜아웃 — "품질은 설정이 결정" + USAGE.md 링크 + 번들 예시 도메인팩이 깊이 본보기임을 안내.
+- **번들 예시(config-templates) 보강**: classify-tuning 에 `ma_route` 예시 추가 — 새 조직이 투자·M&A 라우팅을 바로 보고 따라 쓰도록.
 ## 0.5.5 — Haiku 사건 클러스터링 + 순차 재시도 + M&A 라우팅
 
 병렬 합성의 카테고리 중첩·누락·과병합을 한 번에 해결.
