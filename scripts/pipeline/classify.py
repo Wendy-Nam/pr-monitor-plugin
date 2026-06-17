@@ -118,6 +118,9 @@ SUBJECT_LEAD_CHARS = 800
 # (예: "Bigwave Robotics ... Automation Exhibition" → robotics/automation 만으로 amr·humanoid 분류되던 버그)
 # 카테고리별 고유 키워드(복합어 포함, 예: "NVIDIA Omniverse", "Cosmos")는 그대로 specific 으로 인정된다.
 GENERIC_CATEGORY_TERMS = set(_TUNING["generic_category_terms"])
+# M&A·투자 라우팅 (선택) — {keywords:[...], target:"<category_id>"}. 도메인팩이 지정하면
+# 그 키워드(지분 인수/투자/매각 등)에 걸린 기사를 제품 카테고리 대신 target 으로 보낸다.
+_MA_ROUTE = _TUNING.get("ma_route", {}) or {}
 
 
 def _subject_text(title: str, text: str) -> str:
@@ -191,6 +194,12 @@ def assign_categories(title: str, text: str, profile: dict) -> list[str]:
 
         if any(term_in(t, subject) for t in specific_terms):
             assigned.append(cat_id)
+
+    # M&A·투자 라우팅 (도메인팩 ma_route 선택) — 지분 인수/투자/매각은 제품 카테고리가
+    # 아니라 자금/M&A 사건이므로 지정 target 카테고리로 보낸다 (설정 없으면 무동작 = 중립).
+    if _MA_ROUTE.get("target") in categories and any(
+            term_in(k.lower(), subject) for k in _MA_ROUTE.get("keywords", [])):
+        return [_MA_ROUTE["target"]]
 
     # 기본 카테고리 — 아무 것도 안 걸리면 source_query 기반 폴백
     return assigned if assigned else ["uncategorized"]
