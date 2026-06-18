@@ -24,6 +24,43 @@ def _today() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
 
+def _reexec_under_venv(venv_py) -> None:
+    """Re-exec the current process under the venv interpreter (idempotent no-op
+    when already running there or when the venv is missing).
+
+    The launcher starts the dispatcher under the *system* interpreter, because at
+    first run the venv does not exist yet. But the dispatcher runs config-reading
+    code **in-process** (``domainpack``/PyYAML, ``pipeline_cfg``, …), so when the
+    system interpreter lacks a third-party dep (commonly PyYAML) those calls die
+    with ``ModuleNotFoundError`` mid-pipeline (e.g. newsletter synthesis). The
+    subprocess step-scripts were already safe (they use ``paths.venv_python()``);
+    this makes the parent process consistent with them.
+    """
+    import os
+    from pathlib import Path
+
+    venv_py = Path(venv_py)
+    try:
+        if Path(sys.executable).resolve() == venv_py.resolve():
+            return  # already under the venv interpreter
+    except OSError:
+        return
+    if not venv_py.exists():
+        return  # bootstrap should have created it; be defensive
+
+    # Reconstruct the invocation: the launcher runs us as ``python LAUNCHER.py
+    # <args>``; ``python -m prmonitor <args>`` is the dev path.
+    if sys.argv and sys.argv[0].endswith(".py") and os.path.exists(sys.argv[0]):
+        new_argv = [str(venv_py), sys.argv[0], *sys.argv[1:]]
+    else:
+        new_argv = [str(venv_py), "-m", "prmonitor", *sys.argv[1:]]
+
+    if os.name == "nt":  # Windows: os.execv is flaky — spawn + propagate code.
+        import subprocess
+        raise SystemExit(subprocess.run(new_argv).returncode)
+    os.execv(str(venv_py), new_argv)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="prmonitor", description="PR Monitor pipeline CLI")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -70,12 +107,18 @@ def main(argv: list[str] | None = None) -> int:
         return init.run(args)
 
     # Pipeline subcommands need the venv (deps). Bootstrap is idempotent.
-    from . import bootstrap
+    from . import bootstrap, paths
     try:
         bootstrap.ensure_venv(quiet=False)
     except bootstrap.BootstrapError as e:
         print(f"[bootstrap] {e}", file=sys.stderr)
         return 1
+
+    # Now that the venv is guaranteed, re-exec under it so in-process config reads
+    # (domainpack/PyYAML, pipeline_cfg) have the deps. Only for real CLI runs;
+    # programmatic/test calls pass argv explicitly and are left untouched.
+    if argv is None:
+        _reexec_under_venv(paths.venv_python())
 
     from .steps import pre, post, pr_monitor, pr_daily, newsletter
     dispatch = {
