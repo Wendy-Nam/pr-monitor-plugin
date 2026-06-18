@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.7 — venv 재실행 버그픽스
+
+뉴스레터 합성이 시스템 파이썬 환경에서 깨지던 버그 수정. 엔진 동작·설정 스키마 변경 없음.
+
+### 수정
+- **venv 재실행(re-exec)**: 런처는 디스패처를 시스템 파이썬으로 띄운다(첫 실행엔 venv가 없으므로). 부트스트랩 후 프로세스를 venv 인터프리터로 re-exec 하도록 변경. in-process 설정 읽기(`domainpack`/PyYAML·`pipeline_cfg`)가 **시스템 파이썬에 PyYAML이 없을 때 `ModuleNotFoundError`로 죽던 문제** 해결 — 특히 뉴스레터 합성(`_synth_prompt`) 단계에서 발생. 서브프로세스 스텝은 이미 안전했고, 이제 부모 프로세스도 일관됨. idempotent(이미 venv면 no-op)·실 CLI 한정(`argv is None`)·Windows 안전(`subprocess`+exit code). ([#39](https://github.com/Wendy-Nam/pr-monitor-plugin/pull/39))
+
 ## 0.5.6 — 설정 튜닝 가이드(USAGE.md) + 번들 예시 보강
 
 문서·예시 보강. 엔진 동작 변경 없음.
