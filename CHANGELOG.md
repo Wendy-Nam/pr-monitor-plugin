@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.8 — venv 재실행 가드 핫픽스
+
+0.5.7의 venv 재실행 픽스가 실제로 동작하지 않던 문제를 수정. (0.5.7 사용자는 0.5.8로 업데이트 권장.)
+
+### 수정
+- **재실행 가드 심볼릭 링크 오판 수정**: 0.5.7은 `Path(sys.executable).resolve() == venv_py.resolve()` 로 "이미 venv인지"를 판정했는데, venv의 `python3`가 시스템 바이너리로의 심볼릭 링크라 `.resolve()` 시 양쪽이 동일 실체 경로가 되어 **항상 참 → re-exec 건너뜀**. 결국 0.5.7 픽스가 무효였고 `ModuleNotFoundError: yaml` 가 그대로 재현됐다. 가드를 **인터프리터 prefix 비교**(`sys.prefix == <venv_dir>`)로 교체 — 실제로 venv 안에서 돌 때만 참이 된다. 시스템 파이썬에서 `post`·`newsletter` 완주 확인. ([#40](https://github.com/Wendy-Nam/pr-monitor-plugin/pull/40))
+
 ## 0.5.7 — venv 재실행 버그픽스
 
 뉴스레터 합성이 시스템 파이썬 환경에서 깨지던 버그 수정. 엔진 동작·설정 스키마 변경 없음.
