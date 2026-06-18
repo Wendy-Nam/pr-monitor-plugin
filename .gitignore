@@ -38,3 +38,6 @@ domain-packs/
 # runtime self-context (operator-populated; only *.sample.* are tracked templates)
 data/self-context/*
 !data/self-context/*.sample.*
+
+# packaged plugin artifact (build output)
+*.plugin

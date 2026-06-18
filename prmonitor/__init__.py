@@ -3,7 +3,7 @@
 Domain-agnostic news-automation pipeline. Org-specific knowledge lives in the
 domain pack under ``${CLAUDE_PROJECT_DIR}/config`` (see docs/specs).
 """
-__version__ = "0.5.2"
+__version__ = "0.5.6"
 
 
 class PrMonitorError(RuntimeError):
