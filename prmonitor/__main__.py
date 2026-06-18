@@ -40,13 +40,21 @@ def _reexec_under_venv(venv_py) -> None:
     from pathlib import Path
 
     venv_py = Path(venv_py)
-    try:
-        if Path(sys.executable).resolve() == venv_py.resolve():
-            return  # already under the venv interpreter
-    except OSError:
-        return
     if not venv_py.exists():
         return  # bootstrap should have created it; be defensive
+
+    # "Am I already running inside the venv?" Compare interpreter *prefixes*, not
+    # the executable path: a venv's python is typically a symlink to the very same
+    # system binary, so resolving sys.executable false-matches the venv python and
+    # would skip the re-exec entirely — leaving in-process code on the dep-less
+    # system interpreter. sys.prefix points at the venv root only when we are
+    # actually running inside it.
+    venv_dir = venv_py.parent.parent  # .venv/bin/python3 → .venv (Win: .venv/Scripts → .venv)
+    try:
+        if Path(sys.prefix).resolve() == venv_dir.resolve():
+            return  # already under the venv interpreter
+    except OSError:
+        pass
 
     # Reconstruct the invocation: the launcher runs us as ``python LAUNCHER.py
     # <args>``; ``python -m prmonitor <args>`` is the dev path.
