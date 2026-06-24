@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.9 — 보안 패치 (환경변수 검증 + 의존성 업데이트)
+
+### 수정
+- **환경변수 → subprocess 입력 검증** (`TT2`): `PRM_SYNTH_MODEL`, `PRM_SYNTH_EFFORT`, `PRM_GLOSSARY_MODEL` 을 정규식/허용 목록으로 검증 후 CLI 인자로 전달. `PRM_ENRICH_THINKING` 은 `isdigit()` 검증으로 정수만 허용. 런타임 환경변수가 오염될 경우 예상 외 값이 subprocess 인자로 그대로 흘러드는 경로를 차단.
+- **의존성 버전 업데이트**: `requests` 2.32.3 → 2.34.2 (CVE 2건), `pytest` 8.3.5 → 9.1.1 (CVE 1건). 131 tests pass.
+
 ## 0.5.8 — venv 재실행 가드 핫픽스
 
 0.5.7의 venv 재실행 픽스가 실제로 동작하지 않던 문제를 수정. (0.5.7 사용자는 0.5.8로 업데이트 권장.)
