@@ -99,7 +99,8 @@ def _run_haiku(in_path: Path, out_path: Path) -> bool:
 입력의 모든 기사를 빠짐없이 포함한다. 설명·잡담 없이 파일만 쓴다."""
     log = paths.LOGS_DIR / f"enrich-{in_path.stem}.log"
     env = dict(os.environ)
-    env["MAX_THINKING_TOKENS"] = os.environ.get("PRM_ENRICH_THINKING", "0")
+    _thinking_raw = os.environ.get("PRM_ENRICH_THINKING", "0")
+    env["MAX_THINKING_TOKENS"] = str(int(_thinking_raw)) if _thinking_raw.isdigit() else "0"
     env.pop("CLAUDE_EFFORT", None)
     argv = [
         claude, "-p", prompt,

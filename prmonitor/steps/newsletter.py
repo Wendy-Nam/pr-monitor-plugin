@@ -61,6 +61,23 @@ from ..common import err, log, ok, require_file, resolve_hours, warn
 _SYNTH_MODEL_DEFAULT = os.environ.get("PRM_SYNTH_MODEL_DEFAULT", "claude-sonnet-4-6")
 _BLOCKED_MODEL_SUBSTR = "opus"  # 비용 과다 — 합성에 금지
 
+_VALID_EFFORT = {"low", "medium", "high", "xhigh", "max"}
+_SAFE_MODEL_RE = __import__("re").compile(r"[a-zA-Z0-9._:/-]{1,80}")
+
+
+def _safe_model(val: str | None, default: str) -> str:
+    """Validate a model name from env — reject values with unexpected chars."""
+    val = (val or "").strip()
+    if val and _SAFE_MODEL_RE.fullmatch(val):
+        return val
+    return default
+
+
+def _safe_effort(val: str | None, default: str) -> str:
+    """Validate an effort level from env — allowlist only."""
+    val = (val or "").strip().lower()
+    return val if val in _VALID_EFFORT else default
+
 
 def _exec_log(*, date: str, run_id: str, started: str, status: int,
               hours: int, claude_log: str) -> None:
@@ -335,7 +352,7 @@ def _run_parallel_synth(date, claude_bin, synth_model, synth_effort, synth_env):
     except FileNotFoundError:
         pass
     gargv = [claude_bin, "-p", _glossary_prompt(date, briefing_path, ctx_path, gloss_out),
-             "--model", os.environ.get("PRM_GLOSSARY_MODEL", "claude-sonnet-4-6"),
+             "--model", _safe_model(os.environ.get("PRM_GLOSSARY_MODEL"), "claude-sonnet-4-6"),
              "--effort", "low", "--allowedTools", "Read,Write",
              "--add-dir", str(paths.PROJECT_DIR),
              "--output-format", "stream-json", "--verbose"]
@@ -462,10 +479,10 @@ def run(args) -> int:
     # raw `claude -p` 는 agent frontmatter 를 안 읽으므로 여기서 명시하지 않으면
     # CLI 기본값(Opus)으로 떨어져 ~5배 비싸진다. PRM_SYNTH_MODEL 로 1회 override 가능.
     synth_model = _enforce_cheap_model(
-        os.environ.get("PRM_SYNTH_MODEL") or _synth_model_from_spec())
+        _safe_model(os.environ.get("PRM_SYNTH_MODEL"), _synth_model_from_spec()))
     # agent 모드 기본 extended thinking 이 30분 폭주를 일으킴 — effort 로 캡한다.
     # 입력(synthesis-context)이 작아 low 로도 Sonnet 교차합성 품질은 유지된다.
-    synth_effort = os.environ.get("PRM_SYNTH_EFFORT", "medium")
+    synth_effort = _safe_effort(os.environ.get("PRM_SYNTH_EFFORT"), "medium")
     claude_argv = [
         claude_bin, "-p", prompt,
         "--model", synth_model,
