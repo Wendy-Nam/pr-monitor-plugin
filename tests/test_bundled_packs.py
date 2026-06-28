@@ -91,16 +91,30 @@ class TestEngineConsumesBundledPacks:
 # ── C. init 시드 + 멱등 + 시크릿 미시드 ───────────────────────
 class TestInitScaffolding:
     def test_seeds_config_idempotent_no_secret(self, tmp_path):
+        # IS_PLUGIN=True 환경에서 --force 로 첫 설치 시뮬레이션 (/setup INSTALL 경로).
+        # force 없이 호출하면 새 워크스페이스에서 no-op 이 되는 게 의도된 동작.
         ws, data = tmp_path / "ws", tmp_path / "data"
         r = _run_py(
             "from prmonitor.steps import init; "
-            "import sys; sys.exit(init.run() or init.run())",  # 두 번 = 멱등 확인
+            "from argparse import Namespace; "
+            "import sys; args = Namespace(force=True); "
+            "sys.exit(init.run(args) or init.run(args))",  # 두 번 = 멱등 확인
             ws, data)
         assert r.returncode == 0, f"init 실패:\n{r.stderr}"
         cfg = ws / "config"
         assert (cfg / "company-profile.yaml").is_file(), "config 시드 안 됨"
         # 시크릿 파일은 절대 시드하지 않는다 (userConfig→키체인 경로)
         assert not (cfg / "delivery.yaml").is_file(), "delivery.yaml(시크릿) 시드됨"
+
+    def test_hook_noop_on_fresh_workspace(self, tmp_path):
+        # SessionStart 훅은 force 없이 호출 — 새 워크스페이스(마커 없음)에서 no-op.
+        # 다른 프로젝트에 스캐폴딩이 생성되는 버그 방지.
+        ws, data = tmp_path / "ws", tmp_path / "data"
+        r = _run_py(
+            "from prmonitor.steps import init; import sys; sys.exit(init.run())",
+            ws, data)
+        assert r.returncode == 0, f"init hook 실패:\n{r.stderr}"
+        assert not (ws / "config").exists(), "훅이 마커 없는 워크스페이스에 스캐폴딩 생성함 (버그)"
 
 
 # ── D. setup 가드레일 — 기존 사용자 도메인팩 리셋 방지 ─────────

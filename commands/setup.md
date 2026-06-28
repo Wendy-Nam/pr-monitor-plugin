@@ -81,8 +81,15 @@ Azure 인증: ✅ 연결됨 | ❌ 미설정 (→ "Azure 키" 로 설정)
 
 먼저 어떻게 시작할지 고른다.
 
+> **[필수] 스캐폴딩 초기화** — setup-guard 통과 후, 도메인팩 쓰기 전에 반드시 실행:
+> ```bash
+> python3 "${CLAUDE_PLUGIN_ROOT}/prmonitor_launch.py" init --force
+> ```
+> 이 명령이 `config/`, `data/`, `logs/` 골격과 `.prmonitor-initialized` 마커를 만든다.
+> (SessionStart 훅은 이 마커가 없으면 동작하지 않으므로, 최초 1회 여기서 반드시 실행해야 한다.)
+
 ### 빠른 체험 — 번들 예시 팩으로 바로 시작
-엔진 동작부터 보고 싶으면 `init` 이 시드해 둔 예시 도메인팩(콘토소 모터스·EV)으로 곧장 실행한다.
+엔진 동작부터 보고 싶으면 `init --force` 가 시드해 둔 예시 도메인팩(콘토소 모터스·EV)으로 곧장 실행한다.
 SECRETS + RECIPIENTS 만 안내. (우리 조직용은 아래에서 따로 만든다.)
 
 ### 우리 조직 도메인팩 만들기 — 세 모드 중 선택

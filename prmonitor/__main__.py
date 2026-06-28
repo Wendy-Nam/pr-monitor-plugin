@@ -93,7 +93,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_nl.add_argument("date", nargs="?", default=None)
     p_nl.add_argument("--hours", type=int, default=None)
 
-    sub.add_parser("init", help="첫 실행 스캐폴딩 (config/data 골격 + venv)")
+    p_init = sub.add_parser("init", help="첫 실행 스캐폴딩 (config/data 골격 + venv)")
+    p_init.add_argument("--force", action="store_true",
+                        help="마커 없는 새 워크스페이스에서 강제 실행 (/setup 첫 설치용)")
     sub.add_parser("paths", help="해석된 경로 출력 (디버그)")
 
     return parser

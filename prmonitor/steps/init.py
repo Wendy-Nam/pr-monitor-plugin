@@ -13,6 +13,12 @@ from .. import paths
 
 
 def run(args=None) -> int:
+    # SessionStart hook fires in every workspace. Only scaffold if this
+    # workspace has already opted in (marker exists) or --force is given
+    # (explicit first-time setup via /setup → `init --force`).
+    if paths.IS_PLUGIN and not getattr(args, "force", False) and not paths.INIT_MARKER.exists():
+        return 0
+
     paths.ensure_dirs()
 
     seeded: list[str] = []
