@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.10 — SessionStart 훅 스캐폴딩 버그 수정
+
+### 수정
+- **다른 워크스페이스에 스캐폴딩 반복 생성 버그**: SessionStart 훅이 모든 워크스페이스에서 발화해, 새 워크스페이스를 열 때마다 `config/`·`data/`·`logs/` 가 생성되던 문제 수정. `.prmonitor-initialized` 마커가 없고 `--force` 플래그도 없으면 `init` 이 no-op 으로 처리됨. 첫 설치는 `/setup` → `init --force` 경로로만 진행.
+- `__main__.py`: `init` 서브커맨드에 `--force` 플래그 추가.
+- `commands/setup.md`: INSTALL 흐름에 `init --force` 명시.
+- 132 tests pass.
+
 ## 0.5.9 — 보안 패치 (환경변수 검증 + 의존성 업데이트)
 
 ### 수정
